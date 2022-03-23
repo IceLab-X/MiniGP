@@ -1,1 +1,4 @@
-A painless GP implementation library
+A painless GP implementation library for educational purpose.
+
+Files explanation:
+sgp.ipynb: Simple GP Implementation in an hour (GP tutorial-E02)
