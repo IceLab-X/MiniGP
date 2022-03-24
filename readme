@@ -2,3 +2,4 @@ A painless GP implementation library for educational purpose.
 
 Files explanation:
 sgp.ipynb: Simple GP Implementation in an hour (GP tutorial-E02)
+cigp_v10: conditional independent GP for multivariate output.
