@@ -29,19 +29,19 @@ class cigp(nn.Module):
 
         #normalize X independently for each dimension
         self.Xmean = X.mean(0)
-        self.Xvar = X.var(0)
-        self.X = (X - self.Xmean.expand_as(X)) / self.Xvar.expand_as(X)
+        self.Xstd = X.std(0)
+        self.X = (X - self.Xmean.expand_as(X)) / (self.Xstd.expand_as(X) + EPS)
 
         if normal_y_mode == 0:
             # normalize y all together
             self.Ymean = Y.mean()
-            self.Yvar = Y.var()
-            self.Y = (Y - self.Ymean.expand_as(Y)) / self.Yvar.expand_as(Y)
+            self.Ystd = Y.std()
+            self.Y = (Y - self.Ymean.expand_as(Y)) / (self.Ystd.expand_as(Y) + EPS)
         elif normal_y_mode == 1:
         # option 2: normalize y by each dimension
             self.Ymean = Y.mean(0)
-            self.Yvar = Y.var(0)
-            self.Y = (Y - self.Ymean.expand_as(Y)) / self.Yvar.expand_as(Y)
+            self.Ystd = Y.std(0)
+            self.Y = (Y - self.Ymean.expand_as(Y)) / (self.Ystd.expand_as(Y) + EPS)
 
         # GP hyperparameters
         self.log_beta = nn.Parameter(torch.ones(1) * 0)   # a large noise by default
@@ -64,7 +64,7 @@ class cigp(nn.Module):
 
     def forward(self, Xte):
         n_test = Xte.size(0)
-        Xte = ( Xte - self.Xmean.expand_as(Xte) ) / self.Xvar.expand_as(Xte)
+        Xte = ( Xte - self.Xmean.expand_as(Xte) ) / self.Xstd.expand_as(Xte)
 
         Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(self.X.size(0)) \
             + JITTER * torch.eye(self.X.size(0))
@@ -75,16 +75,16 @@ class cigp(nn.Module):
 
         # option 1
         mean = kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky()
-        var_diag = self.log_scale.exp().expand(n_test, 1) \
+        std_diag = self.log_scale.exp().expand(n_test, 1) \
             - (LinvKx**2).sum(dim = 0).view(-1, 1)
 
         # add the noise uncertainty
-        var_diag = var_diag + self.log_beta.exp().pow(-1)
+        std_diag = std_diag + self.log_beta.exp().pow(-1)
 
-        mean = mean * self.Yvar.expand_as(mean) + self.Ymean.expand_as(mean)
-        var_diag = var_diag.expand_as(mean) * self.Yvar**2
+        mean = mean * self.Ystd.expand_as(mean) + self.Ymean.expand_as(mean)
+        std_diag = std_diag.expand_as(mean) * self.Ystd**2
 
-        return mean, var_diag
+        return mean, std_diag
 
 
     def negative_log_likelihood(self):
@@ -158,9 +158,9 @@ if __name__ == "__main__":
     # model.train_bfgs(50, lr=0.1)
 
     with torch.no_grad():
-        ypred, yvar = model(xte)
+        ypred, ystd = model(xte)
 
-    plt.errorbar(xte, ypred.reshape(-1).detach(), yvar.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
+    plt.errorbar(xte, ypred.reshape(-1).detach(), ystd.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
     plt.plot(xtr, ytr, 'b+')
     plt.show()
 
@@ -176,9 +176,9 @@ if __name__ == "__main__":
     # model.train_bfgs(50, lr=0.01)
 
     with torch.no_grad():
-        ypred, yvar = model(xte)
+        ypred, ystd = model(xte)
 
-    # plt.errorbar(xte.sum(1), ypred.reshape(-1).detach(), yvar.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
+    # plt.errorbar(xte.sum(1), ypred.reshape(-1).detach(), ystd.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
     plt.plot(xte.sum(1), yte, 'b+')
     plt.plot(xte.sum(1), ypred.reshape(-1).detach(), 'r+')
     # plt.plot(xtr.sum(1), ytr, 'b+')
@@ -203,9 +203,9 @@ if __name__ == "__main__":
     # model.train_bfgs(50, lr=0.001)
 
     with torch.no_grad():
-        ypred, yvar = model(xte)
+        ypred, ystd = model(xte)
 
-    # plt.errorbar(xte, ypred.detach(), yvar.sqrt().squeeze().detach(),fmt='r-.' ,alpha = 0.2)
+    # plt.errorbar(xte, ypred.detach(), ystd.sqrt().squeeze().detach(),fmt='r-.' ,alpha = 0.2)
     plt.plot(xte, ypred.detach(),'r-.')
     plt.plot(xtr, ytr, 'b+')
     plt.plot(xte, yte, 'k-')
@@ -217,8 +217,8 @@ if __name__ == "__main__":
         plt.plot(xte, yte[:, i], label='truth', color='r')
         plt.plot(xte, ypred[:, i], label='prediction', color='navy')
         plt.fill_between(xte.squeeze(-1).detach().numpy(),
-                         ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(yvar[:, i].squeeze(-1)).detach().numpy(),
-                         ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(yvar[:, i].squeeze(-1)).detach().numpy(),
+                         ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ystd[:, i].squeeze(-1)).detach().numpy(),
+                         ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ystd[:, i].squeeze(-1)).detach().numpy(),
                          alpha=0.2)
     plt.show()
 
