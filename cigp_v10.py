@@ -75,16 +75,17 @@ class cigp(nn.Module):
 
         # option 1
         mean = kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky()
-        std_diag = self.log_scale.exp().expand(n_test, 1) \
+        var_diag = self.log_scale.exp().expand(n_test, 1) \
             - (LinvKx**2).sum(dim = 0).view(-1, 1)
 
         # add the noise uncertainty
-        std_diag = std_diag + self.log_beta.exp().pow(-1)
+        var_diag = var_diag + self.log_beta.exp().pow(-1)
 
+        # de-normalized
         mean = mean * self.Ystd.expand_as(mean) + self.Ymean.expand_as(mean)
-        std_diag = std_diag.expand_as(mean) * self.Ystd**2
+        var_diag = var_diag.expand_as(mean) * self.Ystd**2
 
-        return mean, std_diag
+        return mean, var_diag
 
 
     def negative_log_likelihood(self):
@@ -158,9 +159,9 @@ if __name__ == "__main__":
     # model.train_bfgs(50, lr=0.1)
 
     with torch.no_grad():
-        ypred, ystd = model(xte)
+        ypred, ypred_var = model(xte)
 
-    plt.errorbar(xte, ypred.reshape(-1).detach(), ystd.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
+    plt.errorbar(xte, ypred.reshape(-1).detach(), ypred_var.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
     plt.plot(xtr, ytr, 'b+')
     plt.show()
 
@@ -176,7 +177,7 @@ if __name__ == "__main__":
     # model.train_bfgs(50, lr=0.01)
 
     with torch.no_grad():
-        ypred, ystd = model(xte)
+        ypred, ypred_var = model(xte)
 
     # plt.errorbar(xte.sum(1), ypred.reshape(-1).detach(), ystd.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
     plt.plot(xte.sum(1), yte, 'b+')
@@ -203,9 +204,9 @@ if __name__ == "__main__":
     # model.train_bfgs(50, lr=0.001)
 
     with torch.no_grad():
-        ypred, ystd = model(xte)
+        ypred, ypred_var = model(xte)
 
-    # plt.errorbar(xte, ypred.detach(), ystd.sqrt().squeeze().detach(),fmt='r-.' ,alpha = 0.2)
+    # plt.errorbar(xte, ypred.detach(), ypred_var.sqrt().squeeze().detach(),fmt='r-.' ,alpha = 0.2)
     plt.plot(xte, ypred.detach(),'r-.')
     plt.plot(xtr, ytr, 'b+')
     plt.plot(xte, yte, 'k-')
@@ -217,8 +218,8 @@ if __name__ == "__main__":
         plt.plot(xte, yte[:, i], label='truth', color='r')
         plt.plot(xte, ypred[:, i], label='prediction', color='navy')
         plt.fill_between(xte.squeeze(-1).detach().numpy(),
-                         ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ystd[:, i].squeeze(-1)).detach().numpy(),
-                         ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ystd[:, i].squeeze(-1)).detach().numpy(),
+                         ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
+                         ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
                          alpha=0.2)
     plt.show()
 
