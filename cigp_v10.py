@@ -50,8 +50,8 @@ class cigp(nn.Module):
 
     # define kernel function
     def kernel(self, X1, X2):
-        X1 = X1 / self.log_length_scale.exp()**2
-        X2 = X2 / self.log_length_scale.exp()**2
+        X1 = X1 / self.log_length_scale.exp()
+        X2 = X2 / self.log_length_scale.exp()
         # X1_norm2 = X1 * X1
         # X2_norm2 = X2 * X2
         X1_norm2 = torch.sum(X1 * X1, dim=1).view(-1, 1)
