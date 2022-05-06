@@ -50,6 +50,7 @@ class cigp(nn.Module):
 
     # define kernel function
     def kernel(self, X1, X2):
+        # the common RBF kernel
         X1 = X1 / self.log_length_scale.exp()
         X2 = X2 / self.log_length_scale.exp()
         # X1_norm2 = X1 * X1
@@ -60,6 +61,36 @@ class cigp(nn.Module):
         K = -2.0 * X1 @ X2.t() + X1_norm2.expand(X1.size(0), X2.size(0)) + X2_norm2.t().expand(X1.size(0), X2.size(0))  #this is the effective Euclidean distance matrix between X1 and X2.
         K = self.log_scale.exp() * torch.exp(-0.5 * K)
         return K
+
+    def kernel_matern3(self, x1, x2):
+        """
+        latex formula:
+        \sigma ^2\left( 1+\frac{\sqrt{3}d}{\rho} \right) \exp \left( -\frac{\sqrt{3}d}{\rho} \right)
+        :param x1: x_point1
+        :param x2: x_point2
+        :return: kernel matrix
+        """
+        const_sqrt_3 = torch.sqrt(torch.ones(1) * 3)
+        x1 = x1 / self.log_length_matern3.exp()
+        x2 = x2 / self.log_length_matern3.exp()
+        distance = const_sqrt_3 * torch.cdist(x1, x2, p=2)
+        k_matern3 = self.log_coe_matern3.exp() * (1 + distance) * (- distance).exp()
+        return k_matern3
+
+    def kernel_matern5(self, x1, x2):
+        """
+        latex formula:
+        \sigma ^2\left( 1+\frac{\sqrt{5}}{l}+\frac{5r^2}{3l^2} \right) \exp \left( -\frac{\sqrt{5}distance}{l} \right)
+        :param x1: x_point1
+        :param x2: x_point2
+        :return: kernel matrix
+        """
+        const_sqrt_5 = torch.sqrt(torch.ones(1) * 5)
+        x1 = x1 / self.log_length_matern5.exp()
+        x2 = x2 / self.log_length_matern5.exp()
+        distance = const_sqrt_5 * torch.cdist(x1, x2, p=2)
+        k_matern5 = self.log_coe_matern5.exp() * (1 + distance + distance ** 2 / 3) * (- distance).exp()
+        return k_matern5
 
 
     def forward(self, Xte):
