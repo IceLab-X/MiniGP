@@ -16,6 +16,8 @@ from matplotlib import pyplot as plt
 
 print(torch.__version__)
 # I use torch (1.11.0) for this work. lower version may not work.
+
+import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True' # Fixing strange error if run in MacOS
 JITTER = 1e-6
 EPS = 1e-10
@@ -44,7 +46,7 @@ class cigp(nn.Module):
             self.Y = (Y - self.Ymean.expand_as(Y)) / (self.Ystd.expand_as(Y) + EPS)
 
         # GP hyperparameters
-        self.log_beta = nn.Parameter(torch.ones(1) * 0)   # a large noise by default
+        self.log_beta = nn.Parameter(torch.ones(1) * 0)   # a large noise by default. Smaller value makes larger noise variance.
         self.log_length_scale = nn.Parameter(torch.zeros(X.size(1)))    # ARD length scale
         self.log_scale = nn.Parameter(torch.zeros(1))   # kernel scale
 
@@ -106,7 +108,8 @@ class cigp(nn.Module):
 
         # option 1
         mean = kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky()
-        var_diag = self.log_scale.exp().expand(n_test, 1) \
+        
+        var_diag = self.kernel(Xte, Xte).diag().view(-1, 1) \
             - (LinvKx**2).sum(dim = 0).view(-1, 1)
 
         # add the noise uncertainty
@@ -145,9 +148,9 @@ class cigp(nn.Module):
             loss = self.negative_log_likelihood()
             loss.backward()
             optimizer.step()
-            # print('loss_nnl:', loss.item())
-            # print('iter', i, ' nnl:', loss.item())
-            print('iter', i, 'nnl:{:.5f}'.format(loss.item()))
+            # print('loss_nll:', loss.item())
+            # print('iter', i, ' nll:', loss.item())
+            print('iter', i, 'nll:{:.5f}'.format(loss.item()))
 
 
     def train_bfgs(self, niteration=50, lr=0.1):
@@ -163,8 +166,8 @@ class cigp(nn.Module):
                 loss = self.negative_log_likelihood()
                 loss.backward()
                 # print('nll:', loss.item())
-                # print('iter', i, ' nnl:', loss.item())
-                print('iter', i, 'nnl:{:.5f}'.format(loss.item()))
+                # print('iter', i, ' nll:', loss.item())
+                print('iter', i, 'nll:{:.5f}'.format(loss.item()))
                 return loss
 
             # optimizer.zero_grad()
