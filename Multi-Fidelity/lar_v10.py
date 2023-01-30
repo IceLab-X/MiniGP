@@ -1,15 +1,22 @@
+# linear autoregresssion for multi-fidelity fusion
+# v10: A stable version.
+#
+# Author: Wei W. Xing (wxing.me)
+# Email: wayne.xingle@gmail.com
+# Date: 2022-12-29
+
 import torch
-torch.set_default_tensor_type(torch.DoubleTensor)
+# torch.set_default_tensor_type(torch.DoubleTensor)
 import torch.nn as nn
 import numpy as np
-import math
-import tensorly
+# import math
+# import tensorly
 from matplotlib import pyplot as plt
-from scipy.io import loadmat
+# from scipy.io import loadmat
 
 import os
-from cigp_v10 import cigp
-from cigp_v10_rho import ConstMeanCIGP
+from cigp_v122 import cigp
+# from cigp_v10_rho import ConstMeanCIGP
 from sklearn.metrics import mean_squared_error, r2_score
 
 print("cigp_lar:", torch.__version__)
@@ -18,6 +25,39 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True' # Fixing strange error if run in Mac
 JITTER = 1e-6
 EPS = 1e-10
 PI = 3.1415
+
+# define a regression with perfect match between input and output
+# class tableLookUpFunction(nn.Module):
+#     def __init__(self, X, y):
+#         super(tableLookUpFunction, self).__init__()
+#         self.x = x
+#         self.y = y
+#     def forward(self, x):
+#         for i in range((self.x.size(0))):
+#             if 
+# 
+
+# scalling function
+class scallingFunction(nn.Module):
+    def __init__(self):
+        super(scallingFunction, self).__init__()
+        self.amp = nn.Parameter(torch.tensor(1.0))
+    def forward(self, y):
+        return self.amp * y
+        
+class LinearAR(nn.Module):
+        def __init__(self, X_tr, Y_tr):
+        super(LinearAR, self).__init__()
+        nFidelity = Y_tr.size(2)
+        for i in range(nFidelity):
+            if i == 0:
+                self.add_module('cigp_%d' % i, cigp(X_tr, Y_tr[:, :, i]))
+                
+                
+            
+            
+
+
 
 # calculate r2 rmse
 def calculate_metrix(**kwargs):
@@ -78,7 +118,7 @@ def main(data_file):
     print("loss of low-fidelity GP:",metrics_LF)
 
 
-    '''train high-fidelity GP'''
+    '''train high_lar GP'''
     # preparation for high fidelity GP training
     with torch.no_grad():
         ytr_m, ytr_v = model_l(xtr_h)

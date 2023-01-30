@@ -1,15 +1,22 @@
+# linear autoregresssion for multi-fidelity fusion
+# v10: A stable version.
+#
+# Author: Wei W. Xing (wxing.me)
+# Email: wayne.xingle@gmail.com
+# Date: 2022-12-29
+
 import torch
-torch.set_default_tensor_type(torch.DoubleTensor)
+# torch.set_default_tensor_type(torch.DoubleTensor)
 import torch.nn as nn
 import numpy as np
-import math
-import tensorly
+# import math
+# import tensorly
 from matplotlib import pyplot as plt
-from scipy.io import loadmat
+# from scipy.io import loadmat
 
 import os
-from cigp_v10 import cigp
-from cigp_v10_rho import ConstMeanCIGP
+from cigp_v122 import cigp,zeroFunc
+# from cigp_v10_rho import ConstMeanCIGP
 from sklearn.metrics import mean_squared_error, r2_score
 
 print("cigp_lar:", torch.__version__)
@@ -18,6 +25,45 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True' # Fixing strange error if run in Mac
 JITTER = 1e-6
 EPS = 1e-10
 PI = 3.1415
+
+# idx
+# mask
+
+# look up table function. find exact match in the given data set. if not found, use the predFunc to predict.
+class lookUpTable_func(nn.Module):
+    def __init__(self, X_tr, Y_tr, predFunc):
+        super(lookUpTable_func, self).__init__()
+        self.X = X_tr
+        self.Y = Y_tr
+        slef.predFunc = predFunc
+    def forward(self, X):
+        # X: n x d
+        # Y: n x 1
+        n = X.size(0)
+        Y = torch.zeros(n, 1)
+        for i in range(n):
+            idx = torch.where(torch.all(torch.eq(X[i, :], self.X), dim=1))[0]
+            if idx.size(0) == 0:
+                Y[i, 0] = self.predFunc(X[i, :])
+            else:
+                Y[i, 0] = self.Y[idx, 0]
+        return Y
+        
+        
+
+
+class LinearAR(nn.Module):
+        def __init__(self, X_tr, Y_tr):
+        super(LinearAR, self).__init__()
+        nFidelity = Y_tr.size(2)
+        for i in range(nFidelity):
+            if i == 0:
+                self.add_module('cigp_%d' % i, cigp(X_tr, Y_tr[:, :, i]), zeroFunc)
+            else:
+                self.add_module('cigp_%d' % i, cigp(X_tr, Y_tr[:, :, i]), constTimesYlFunc)
+                
+
+
 
 # calculate r2 rmse
 def calculate_metrix(**kwargs):
@@ -78,7 +124,7 @@ def main(data_file):
     print("loss of low-fidelity GP:",metrics_LF)
 
 
-    '''train high-fidelity GP'''
+    '''train high_lar GP'''
     # preparation for high fidelity GP training
     with torch.no_grad():
         ytr_m, ytr_v = model_l(xtr_h)
