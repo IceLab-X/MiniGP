@@ -5,5 +5,6 @@ sgp.ipynb: Simple GP Implementation in an hour (GP tutorial-E02)
 sgp_chs.ipynb: Simple GP Implementation in an hour in Chinese (GP tutorial-E02)
 
 cigp_v10: conditional independent GP (cigp) for multivariate output.
+cigp_dkl: CIGP with deep kernel learning (DKL), which pass the input X through a NN before reaching a normal GP.
 cigp_v12: CIGP with a given mean function
 cigp_v14: CIGP with a mixture of kernels
