@@ -8,3 +8,5 @@ cigp_v10: conditional independent GP (cigp) for multivariate output.
 cigp_dkl: CIGP with deep kernel learning (DKL), which pass the input X through a NN before reaching a normal GP.
 cigp_v12: CIGP with a given mean function
 cigp_v14: CIGP with a mixture of kernels
+
+gpdm_v1: original Gaussian Process Dynamical Model (Wang et al., 2006), which contains 2 GPs to handle dynamics and latent-to-observation mapping respectively.
