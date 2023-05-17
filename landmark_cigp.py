@@ -25,7 +25,8 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "True"  # Fixing strange error if run in Ma
 JITTER = 1e-6
 EPS = 1e-10
 PI = 3.1415
-device = torch.device("cuda")
+# device = torch.device("cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class cigp(nn.Module):
@@ -214,74 +215,77 @@ if __name__ == "__main__":
     yte = yte.to(device)
 
     model = cigp(xtr, ytr).to(device)
-    model.train_adam(2000000, lr=0.01)
+    model.train_adam(200000, lr=0.01)
     # model.train_bfgs(50, lr=0.1)
 
     with torch.no_grad():
         ypred, ypred_var = model(xte)
 
-    plt.errorbar(
-        xte.cpu().detach().numpy(),
-        ypred.reshape(-1).cpu().detach().numpy(),
-        ypred_var.sqrt().squeeze().cpu().detach().numpy(),
-        fmt="r-.",
-        alpha=0.2,
-    )
-    plt.plot(xtr.cpu().detach().numpy(), ytr.cpu().detach().numpy(), "b+")
-    plt.show()
+    print("ypred:", ypred)
 
-    # single output test 2
-    xte = torch.rand(128, 2) * 2
-    yte = torch.sin(xte.sum(1)).view(-1, 1) + 10
+    print("mse:", torch.mean((ypred - yte) ** 2))
+    # plt.errorbar(
+    #     xte.cpu().detach().numpy(),
+    #     ypred.reshape(-1).cpu().detach().numpy(),
+    #     ypred_var.sqrt().squeeze().cpu().detach().numpy(),
+    #     fmt="r-.",
+    #     alpha=0.2,
+    # )
+    # plt.plot(xtr.cpu().detach().numpy(), ytr.cpu().detach().numpy(), "b+")
+    # plt.show()
 
-    xtr = torch.rand(32, 2) * 2
-    ytr = torch.sin(xtr.sum(1)).view(-1, 1) + torch.randn(32, 1) * 0.5 + 10
+    # # single output test 2
+    # xte = torch.rand(128, 2) * 2
+    # yte = torch.sin(xte.sum(1)).view(-1, 1) + 10
 
-    model = cigp(xtr, ytr)
-    model.train_adam(300, lr=0.1)
-    # model.train_bfgs(50, lr=0.01)
+    # xtr = torch.rand(32, 2) * 2
+    # ytr = torch.sin(xtr.sum(1)).view(-1, 1) + torch.randn(32, 1) * 0.5 + 10
 
-    with torch.no_grad():
-        ypred, ypred_var = model(xte)
+    # model = cigp(xtr, ytr)
+    # model.train_adam(300, lr=0.1)
+    # # model.train_bfgs(50, lr=0.01)
 
-    # plt.errorbar(xte.sum(1), ypred.reshape(-1).detach(), ystd.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
-    plt.plot(xte.sum(1), yte, "b+")
-    plt.plot(xte.sum(1), ypred.reshape(-1).detach(), "r+")
-    # plt.plot(xtr.sum(1), ytr, 'b+')
-    plt.show()
+    # with torch.no_grad():
+    #     ypred, ypred_var = model(xte)
 
-    # multi output test
-    xte = torch.linspace(0, 6, 100).view(-1, 1)
-    yte = torch.hstack([torch.sin(xte), torch.cos(xte), xte.tanh()])
+    # # plt.errorbar(xte.sum(1), ypred.reshape(-1).detach(), ystd.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
+    # plt.plot(xte.sum(1), yte, "b+")
+    # plt.plot(xte.sum(1), ypred.reshape(-1).detach(), "r+")
+    # # plt.plot(xtr.sum(1), ytr, 'b+')
+    # plt.show()
 
-    xtr = torch.rand(32, 1) * 6
-    ytr = torch.sin(xtr) + torch.rand(32, 1) * 0.5
-    ytr = torch.hstack([torch.sin(xtr), torch.cos(xtr), xtr.tanh()]) + torch.randn(32, 3) * 0.2
+    # # multi output test
+    # xte = torch.linspace(0, 6, 100).view(-1, 1)
+    # yte = torch.hstack([torch.sin(xte), torch.cos(xte), xte.tanh()])
 
-    model = cigp(xtr, ytr, 1)
-    model.train_adam(100, lr=0.1)
-    # model.train_bfgs(50, lr=0.001)
+    # xtr = torch.rand(32, 1) * 6
+    # ytr = torch.sin(xtr) + torch.rand(32, 1) * 0.5
+    # ytr = torch.hstack([torch.sin(xtr), torch.cos(xtr), xtr.tanh()]) + torch.randn(32, 3) * 0.2
 
-    with torch.no_grad():
-        ypred, ypred_var = model(xte)
+    # model = cigp(xtr, ytr, 1)
+    # model.train_adam(100, lr=0.1)
+    # # model.train_bfgs(50, lr=0.001)
 
-    # plt.errorbar(xte, ypred.detach(), ypred_var.sqrt().squeeze().detach(),fmt='r-.' ,alpha = 0.2)
-    plt.plot(xte, ypred.detach(), "r-.")
-    plt.plot(xtr, ytr, "b+")
-    plt.plot(xte, yte, "k-")
-    plt.show()
+    # with torch.no_grad():
+    #     ypred, ypred_var = model(xte)
 
-    # plt.close('all')
-    plt.plot(xtr, ytr, "b+")
-    for i in range(3):
-        plt.plot(xte, yte[:, i], label="truth", color="r")
-        plt.plot(xte, ypred[:, i], label="prediction", color="navy")
-        plt.fill_between(
-            xte.squeeze(-1).detach().numpy(),
-            ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
-            ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
-            alpha=0.2,
-        )
-    plt.show()
+    # # plt.errorbar(xte, ypred.detach(), ypred_var.sqrt().squeeze().detach(),fmt='r-.' ,alpha = 0.2)
+    # plt.plot(xte, ypred.detach(), "r-.")
+    # plt.plot(xtr, ytr, "b+")
+    # plt.plot(xte, yte, "k-")
+    # plt.show()
+
+    # # plt.close('all')
+    # plt.plot(xtr, ytr, "b+")
+    # for i in range(3):
+    #     plt.plot(xte, yte[:, i], label="truth", color="r")
+    #     plt.plot(xte, ypred[:, i], label="prediction", color="navy")
+    #     plt.fill_between(
+    #         xte.squeeze(-1).detach().numpy(),
+    #         ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
+    #         ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
+    #         alpha=0.2,
+    #     )
+    # plt.show()
 
 # %%

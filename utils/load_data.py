@@ -5,17 +5,18 @@ import torch
 
 
 def get_data(fold, split, representation_level, coords=0):
-    if split == "validation":
-        split_append = "val"
-    elif split == "testing":
-        split_append = "test"
-    else:
-        split_append = "train"
+    # if split == "validation":
+    #     split_append = "val"
+    # elif split == "testing":
+    #     split_append = "test"
+    # else:
+    #     split_append = "train"
 
     # Path to the data
-    data_path = f"/mnt/bess/shared/tale2/Shared/schobs/landmark_unet/lannUnet_exps/GP/s1_int/f{fold}_{split_append}/intermediate_outputs/fold{fold}/{representation_level}/{split}/"
+    # /home/schobs/Documents/PhD/WeiGP/Mini-GP/data/fold0.json
+    data_path = f"data/fold{fold}/{split}/{representation_level}/"
     # Load the JSON file
-    json_path = f"/mnt/bess/shared/tale2/Shared/schobs/data/ISBI2015_landmarks/lann_folds/w_valid/fold{fold}.json"
+    json_path = f"data/fold{fold}.json"
     with open(json_path) as f:
         data_json = json.load(f)
 
