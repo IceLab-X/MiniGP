@@ -3,7 +3,7 @@
 #
 # v10: A stable version. improve over the v02 version to fix nll bug; adapt to torch 1.11.0.
 # v12: add mean function to v10
-# v122: add mean function using functional inputs
+# v122: add mean function using any function as input to cigp
 #
 # Author: Wei W. Xing (wxing.me)
 # Email: wayne.xingle@gmail.com
@@ -143,7 +143,8 @@ class cigp(nn.Module):
 
         # option 1
         mean = self.meanFunc(Xte)
-        mean = mean + kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky()
+        # mean = mean + kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky() #this is Wrong implementation that forgets to minus the mean.
+        mean = mean + kx.t() @ torch.cholesky_solve(self.Y-self.meanFunc(self.X), L)  # torch.linalg.cholesky()
         
         var_diag = self.kernel(Xte, Xte).diag().view(-1, 1) \
             - (LinvKx**2).sum(dim = 0).view(-1, 1)
@@ -290,7 +291,7 @@ if __name__ == "__main__":
     plt.plot(xtr, ytr, 'b+')
     for i in range(3):
         plt.plot(xte, yte[:, i], label='truth', color='r')
-        plt.plot(xte, ypred[:, i], label='prediction', colorv='navy')
+        plt.plot(xte, ypred[:, i], label='prediction', color='navy')
         plt.fill_between(xte.squeeze(-1).detach().numpy(),
                          ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
                          ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
