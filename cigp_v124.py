@@ -122,7 +122,9 @@ class cigp(nn.Module):
 
         # option 1
         mean = self.meanFunc(Xte)
-        mean = mean + kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky()
+        # mean = mean + kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky()
+        mean = mean + kx.t() @ torch.cholesky_solve(self.Y-self.meanFunc(self.X), L)  # torch.linalg.cholesky()
+
         
         var_diag = self.kernel(Xte, Xte).diag().view(-1, 1) \
             - (LinvKx**2).sum(dim = 0).view(-1, 1)
