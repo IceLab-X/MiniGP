@@ -1,3 +1,25 @@
+# Todo list
+- [ ] !Test different way of kernel inversion!
+- [ ] add a testunit for kernel function
+- [ ] add a testunit for GP model
+- [ ] add mean function to GP model
+- [ ] redo previous GP models using the new architecture
+- [ ] add GPU enabled GP
+- [ ] Need HOGP
+
+
+
+
+
+
+# Log
+## 2023-11-26
+New architecture: 
+- using modual kernel. No more parameter passing. When a kernel is initialized, it will automatically create the parameters it needs. User can easily define their own way of creating kernels.
+- new GP will use two key components: kernel and mean function. The likelihood tied to the GP and not spedified by the user. A GP model should have it own likelihood function.
+
+
+## 2020-12-15
 A painless GP implementation library for educational purpose.
 
 Files explanation:
