@@ -9,19 +9,18 @@ import torch.nn as nn
 import kernel as kernel
 import time as time
 
-
 class GP_basic(nn.Module):
     def __init__(self, kernel, noise_variance):
         super().__init__()
         self.kernel = kernel
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
 
-    def forward(self, x_train, y_train, x_test):
+    def forward(self, x_train, y_train, x_test, Kinv_method='cholesky3'):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
         K_s = self.kernel(x_train, x_test)
         K_ss = self.kernel(x_test, x_test)
         
-        Kinv_method = 'cholesky2'    # 'direct' or 'cholesky'
+        # Kinv_method = 'cholesky2'    # 'direct' or 'cholesky'
         if Kinv_method == 'cholesky1':   # kernel inverse is not stable, use cholesky decomposition instead
             L = torch.cholesky(K)
             L_inv = torch.inverse(L)
@@ -30,7 +29,8 @@ class GP_basic(nn.Module):
             mu = K_s.T @ alpha
             v = L_inv @ K_s
             cov = K_ss - v.T @ v
-        elif Kinv_method == 'cholesky2':
+        elif Kinv_method == 'cholesky3':
+            # recommended implementation, fastest so far
             L = torch.cholesky(K)
             alpha = torch.cholesky_solve(y_train, L)
             mu = K_s.T @ alpha
@@ -45,10 +45,10 @@ class GP_basic(nn.Module):
             raise ValueError('Kinv_method should be either direct or cholesky')
         return mu.squeeze(), cov
             
-    def log_likelihood(self, x_train, y_train, use_cholesky=False):
+    def log_likelihood(self, x_train, y_train, Kinv_method='cholesky3'):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
         
-        Kinv_method = 'cholesky3'
+        # Kinv_method = 'cholesky3'
         if Kinv_method == 'cholesky1':
             L = torch.cholesky(K)
             L_inv = torch.inverse(L)
@@ -95,6 +95,50 @@ if __name__ == '__main__':
     GPmodel = GP_basic(kernel=kernel1, noise_variance=1.0)
     optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-1)
     
+    for i in range(1000):
+        startTime = time.time()
+        optimizer.zero_grad()
+        loss = -GPmodel.log_likelihood(xtr, ytr)
+        loss.backward()
+        optimizer.step()
+        print('iter', i, 'nll:{:.5f}'.format(loss.item()))
+        timeElapsed = time.time() - startTime
+        print('time elapsed: {:.3f}s'.format(timeElapsed))
+        
+    with torch.no_grad():
+        ypred, ypred_var = GPmodel.forward(xtr, ytr, xte)
+        
+    plt.figure()
+    plt.errorbar(xte, ypred.reshape(-1).detach(), ypred_var.diag().sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
+    plt.plot(xtr, ytr, 'b+')
+    plt.fill_between(xte.squeeze(), ypred.reshape(-1).detach() - ypred_var.diag().sqrt().squeeze().detach(), ypred.reshape(-1).detach() + ypred_var.diag().sqrt().squeeze().detach(), alpha=0.2)
+    plt.draw()
+    # plt.show()    # this will block the code, so use plt.draw() instead
+    
+    # multiple 3d input test
+    import itertools
+    Dim = 3
+    def func(x):
+        return (torch.sin(x[:, 0]/10) + torch.cos(x[:, 1]/5) + torch.log(x[:, 2]) + 10).view(-1, 1)
+    
+    torch.manual_seed(2)       #set seed for reproducibility
+    # Define the grid in each dimension
+    grid_resolution = 5  # Number of points per dimension
+    dim_ranges = [torch.linspace(0, 6, grid_resolution) for _ in range(Dim)]
+    xte = torch.tensor(list(itertools.product(*dim_ranges)))
+    yte = func(xte)
+
+    xtr = torch.rand(32, 3) * 6
+    ytr = func(xtr) + torch.randn(32, 1) * 0.1
+    
+    kernel1 = kernel.ARDKernel(Dim)
+    # kernel1 = kernel.MaternKernel(Dim)
+    # kernel1 = kernel.LinearKernel(Dim,-1.0,1.)
+    
+    # kernel1 = kernel.SumKernel(kernel.LinearKernel(Dim), kernel.MaternKernel(Dim))
+    
+    GPmodel = GP_basic(kernel=kernel1, noise_variance=1.0)
+    optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-1)
     
     for i in range(1000):
         startTime = time.time()
@@ -109,6 +153,10 @@ if __name__ == '__main__':
     with torch.no_grad():
         ypred, ypred_var = GPmodel.forward(xtr, ytr, xte)
         
-    plt.errorbar(xte, ypred.reshape(-1).detach(), ypred_var.diag().sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
-    plt.plot(xtr, ytr, 'b+')
-    plt.show()
+    plt.figure()
+    plt.errorbar(range(len(yte)), ypred.reshape(-1).detach(), ypred_var.diag().sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
+    plt.fill_between(range(len(yte)), ypred.reshape(-1).detach() - ypred_var.diag().sqrt().squeeze().detach(), ypred.reshape(-1).detach() + ypred_var.diag().sqrt().squeeze().detach(), alpha=0.2)
+    plt.plot(range(len(yte)), yte, 'k+')
+    plt.show()  
+    
+

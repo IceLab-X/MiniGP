@@ -105,7 +105,8 @@ class ARDKernel(nn.Module):
 # Matern kernel with independent length scales
 class MaternKernel(nn.Module):
     """
-    Matern kernel module with independent length scales.
+    Simplified Matern kernel module with independent length scales.
+    For the full Matern kernel, see https://en.wikipedia.org/wiki/Mat%C3%A9rn_covariance_function 
 
     Args:
         input_dim (int): The input dimension.
@@ -122,12 +123,14 @@ class MaternKernel(nn.Module):
 
     """
 
-    def __init__(self, input_dim, initial_length_scale=1.0, initial_signal_variance=1.0, nu=2.5, eps=EPS):
+    def __init__(self, input_dim, initial_length_scale=1.0, initial_signal_variance=1.0, nu=2.5, rho=1, eps=EPS):
         super().__init__()
         self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_length_scale)
         self.signal_variance = nn.Parameter(torch.tensor([initial_signal_variance]))
-        self.nu = nn.Parameter(torch.tensor([nu]))
+        # self.nu = nn.Parameter(torch.tensor([nu]))    # not learnable but it can be learnable
         self.eps = eps
+        self.nu = nu
+        self.rho = rho
 
     def forward(self, x1, x2):
         """
@@ -146,8 +149,21 @@ class MaternKernel(nn.Module):
         scaled_x1 = x1 / length_scales
         scaled_x2 = x2 / length_scales
         sqdist = torch.cdist(scaled_x1, scaled_x2, p=2)**2
-        return self.signal_variance.abs() * torch.pow(1 + torch.sqrt(3 * sqdist) / length_scales.pow(2), -self.nu)
-    
+        # sqdist = torch.sum(scaled_x1**2, 1).reshape(-1, 1) + torch.sum(scaled_x2**2, 1) - 2 * torch.matmul(scaled_x1, scaled_x2.T)
+        
+        # if self.nu == 0.5:
+        #     return self.signal_variance.abs() * torch.exp(-torch.sqrt(sqdist))
+        # elif self.nu == 1.5:
+        #     return self.signal_variance.abs() * (1 + torch.sqrt(3 * sqdist)) * torch.exp(-torch.sqrt(3 * sqdist))
+        # elif self.nu == 2.5:
+        #     return self.signal_variance.abs() * (1 + torch.sqrt(5 * sqdist) + 5 / 3 * sqdist) * torch.exp(-torch.sqrt(5 * sqdist))
+        
+        if self.nu == 0.5:
+            return self.signal_variance.abs() * torch.exp(-torch.sqrt(sqdist)/self.rho)
+        elif self.nu == 1.5:
+            return self.signal_variance.abs() * (1 + torch.sqrt(3 * sqdist)/self.rho) * torch.exp(-torch.sqrt(3 * sqdist)/self.rho)
+        elif self.nu == 2.5:
+            return self.signal_variance.abs() * (1 + torch.sqrt(5 * sqdist)/self.rho + 5 / 3 * sqdist/self.rho**2) * torch.exp(-torch.sqrt(5 * sqdist)/self.rho)
 
 # kernel operations
 class SumKernel(nn.Module):
