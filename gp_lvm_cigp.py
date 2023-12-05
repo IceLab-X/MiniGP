@@ -62,6 +62,9 @@ if __name__ == '__main__':
                        torch.cos(xtr),
                         xtr.tanh()] )+ torch.randn(64, 3) * 0.1
     
+    # normalize output data to zero mean and unit variance across each dimension
+    ytr = (ytr - ytr.mean()) / ytr.std()    #works well for cigp
+    
     kernel1 = kernel.ARDKernel(1)
     # kernel1 = kernel.LinearKernel(1)
     kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.ARDKernel(1))

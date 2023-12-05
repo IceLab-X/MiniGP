@@ -63,10 +63,15 @@ if __name__ == '__main__':
                        torch.cos(xtr),
                         xtr.tanh()] )+ torch.randn(32, 3) * 0.2
     
+    # main
+    # normalize output data to zero mean and unit variance across each dimension
+    # ytr = (ytr - ytr.mean(0)) / ytr.std(0) # for cigp, this not work well
+    # ytr = (ytr - ytr.mean()) / ytr.std()    #works well for cigp
+    
+    # define kernel function
     kernel1 = kernel.ARDKernel(1)
     # kernel1 = kernel.MaternKernel(1)   
     # kernel1 = kernel.LinearKernel(1,-1.0,1.)   
-    
     kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
     
     GPmodel = CIGP(kernel=kernel1, noise_variance=1.0)
