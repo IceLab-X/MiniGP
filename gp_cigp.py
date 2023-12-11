@@ -5,13 +5,23 @@
 # Email: wayne.xingle@gmail.com
 # Date: 2023-11-26
 
-
 import numpy as np
 import torch
 import torch.nn as nn
 import kernel as kernel
 import time as time
 
+# define a normalization module
+class Normalization_layer(nn.Module):
+    def __init__(self, X0):
+        super().__init__()
+        self.mean = nn.Parameter(X0.mean(), requires_grad=False)
+        self.std = nn.Parameter(X0.std(), requires_grad=False)
+    def forward(self, x):
+        return (x - self.mean) / self.std
+    def inverse(self, x):
+        return x * self.std + self.mean
+    
 class CIGP(nn.Module):
     def __init__(self, kernel, noise_variance):
         super().__init__()
