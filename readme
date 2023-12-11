@@ -1,7 +1,8 @@
 # Todo list
-- [ ] !Test different way of kernel inversion!
-- [ ] add a testunit for kernel function
-- [ ] add a testunit for GP model
+<!-- - [ ] !Test different way of kernel inversion! -->
+<!-- - [ ] add a testunit for kernel function -->
+<!-- - [ ] add a testunit for GP model -->
+- [ ] add GP_build which take a GP model and warp it with normalizer, optimizer, and loss function definition.
 - [ ] add mean function to GP model
 - [ ] redo previous GP models using the new architecture
 - [ ] add GPU enabled GP
