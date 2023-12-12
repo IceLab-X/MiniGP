@@ -107,9 +107,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
         raise ValueError('Kinv_method should be either direct or cholesky')
     
 def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
-
-    Sigma = Sigma + torch.eye(len(Sigma)) * EPS
-    
+    # Sigma = Sigma + torch.eye(len(Sigma)) * EPS
     if Kinv_method == 'cholesky1':   # kernel inverse is not stable, use cholesky decomposition instead
         L = torch.cholesky(Sigma)
         L_inv = torch.inverse(L)

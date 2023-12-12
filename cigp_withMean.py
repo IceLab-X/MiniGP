@@ -15,17 +15,21 @@ import time as time
 
 import gp_computation_pack as gp_pack
     
+def zeroMean(x):
+    return torch.zeros(x.shape[0], 3)
+
 class CIGP(nn.Module):
     def __init__(self, kernel, noise_variance):
         super().__init__()
         self.kernel = kernel
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
         # define a mean function according to the input shape
-        self.mean_func = nn.Sequential(
-            nn.Linear(1, 3),
-            # nn.ReLU(),
-            # nn.Linear(10, 3)
-        )
+        # self.mean_func = nn.Sequential(
+        #     nn.Linear(1, 3),
+        #     # nn.ReLU(),
+        #     # nn.Linear(10, 3)
+        # )
+        self.mean_func = zeroMean
 
     def forward(self, x_train, y_train, x_test):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
@@ -35,12 +39,12 @@ class CIGP(nn.Module):
         mean_part_test = self.mean_func(x_test)
         
         mu, cov = gp_pack.conditional_Gaussian(y_train-mean_part_train, K, K_s, K_ss)
-        return mu.squeeze()+ mean_part_test, cov
+        return mu + mean_part_test, cov
 
     def log_likelihood(self, x_train, y_train):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
-        mean_part = self.mean_func(x_train)
-        return gp_pack.Gaussian_log_likelihood(y_train-mean_part, K)
+        mean_part_train = self.mean_func(x_train)
+        return gp_pack.Gaussian_log_likelihood(y_train - mean_part_train, K)
         
 # downstate here how to use the GP model
 if __name__ == '__main__':
