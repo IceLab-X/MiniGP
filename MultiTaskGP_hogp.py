@@ -16,7 +16,6 @@ class eigen_pairs:
         self.value = eigen_value
         self.vector = eigen_vector
 
-
 class HOGP_simple(nn.Module):
     def __init__(self,noise_variance,output_shape,learnable_grid=False,learnable_map=False):
         super().__init__()

@@ -54,8 +54,11 @@ class LinearKernel(nn.Module):
             torch.Tensor: The covariance matrix.
 
         """
-        x1 = x1 / self.length_scales - self.center
-        x2 = x2 / self.length_scales - self.center
+        x1 = (x1 - self.center) / self.length_scales
+        x2 = (x2 - self.center) / self.length_scales
+        
+        # x1 = x1 / (self.length_scales - self.center)
+        # x2 = x2 / (self.length_scales - self.center)
         
         return x1 @ x2.T * self.signal_variance.abs()
 

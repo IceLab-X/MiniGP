@@ -1,4 +1,6 @@
+
 # Conditional independent Gaussian process (CIGP) for vector output regression based on pytorch
+# 
 # CIGP use a single kernel for each output. Thus the log likelihood is simply a sum of the log likelihood of each output.
 
 # Author: Wei W. Xing (wxing.me)
@@ -11,48 +13,34 @@ import torch.nn as nn
 import kernel as kernel
 import time as time
 
-# define a normalization module
-class Normalization_layer(nn.Module):
-    def __init__(self, X0):
-        super().__init__()
-        self.mean = nn.Parameter(X0.mean(), requires_grad=False)
-        self.std = nn.Parameter(X0.std(), requires_grad=False)
-    def forward(self, x):
-        return (x - self.mean) / self.std
-    def inverse(self, x):
-        return x * self.std + self.mean
+import gp_computation_pack as gp_pack
     
 class CIGP(nn.Module):
     def __init__(self, kernel, noise_variance):
         super().__init__()
         self.kernel = kernel
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
+        # define a mean function according to the input shape
+        self.mean_func = nn.Sequential(
+            nn.Linear(1, 3),
+            # nn.ReLU(),
+            # nn.Linear(10, 3)
+        )
 
     def forward(self, x_train, y_train, x_test):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
         K_s = self.kernel(x_train, x_test)
         K_ss = self.kernel(x_test, x_test)
+        mean_part_train = self.mean_func(x_train)
+        mean_part_test = self.mean_func(x_test)
         
-        # recommended implementation, fastest so far
-        L = torch.cholesky(K)
-        Alpha = torch.cholesky_solve(y_train, L)
-        mu = K_s.T @ Alpha
-        # v = torch.cholesky_solve(K_s, L)    # wrong implementation
-        v = L.inverse() @ K_s   # correct implementation
-        cov = K_ss - v.T @ v
+        mu, cov = gp_pack.conditional_Gaussian(y_train-mean_part_train, K, K_s, K_ss)
+        return mu.squeeze()+ mean_part_test, cov
 
-        cov = cov.diag().view(-1, 1).expand_as(mu)
-        return mu.squeeze(), cov
-            
     def log_likelihood(self, x_train, y_train):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
-        
-        L = torch.linalg.cholesky(K)
-        log_det_K = 2 * torch.sum(torch.log(torch.diag(L)))
-        Alpha = torch.cholesky_solve(y_train, L, upper = False)
-        
-        # return - 0.5 * (Alpha.T @ Alpha + log_det_K + len(x_train) * np.log(2 * np.pi))
-        return - 0.5 * ( (Alpha ** 2).sum() + log_det_K + len(x_train) * np.log(2 * np.pi))
+        mean_part = self.mean_func(x_train)
+        return gp_pack.Gaussian_log_likelihood(y_train-mean_part, K)
         
 # downstate here how to use the GP model
 if __name__ == '__main__':
@@ -62,7 +50,7 @@ if __name__ == '__main__':
 
     # SIMO test 1
     torch.manual_seed(1)       #set seed for reproducibility
-    xte = torch.linspace(0, 6, 100).view(-1, 1)
+    xte = torch.linspace(-1, 7, 100).view(-1, 1)
     yte = torch.hstack([torch.sin(xte),
                        torch.cos(xte),
                         xte.tanh()] )
@@ -81,7 +69,7 @@ if __name__ == '__main__':
     # define kernel function
     kernel1 = kernel.ARDKernel(1)
     # kernel1 = kernel.MaternKernel(1)   
-    # kernel1 = kernel.LinearKernel(1,-1.0,1.)   
+    kernel1 = kernel.LinearKernel(1,-1.0,1.)   
     kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
     
     GPmodel = CIGP(kernel=kernel1, noise_variance=1.0)
