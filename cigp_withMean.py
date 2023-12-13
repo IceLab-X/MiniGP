@@ -14,24 +14,41 @@ import kernel as kernel
 import time as time
 
 import gp_computation_pack as gp_pack
+import gp_transform as gp_transform
     
 def zeroMean(x):
     return torch.zeros(x.shape[0], 3)
 
-class CIGP(nn.Module):
-    def __init__(self, kernel, noise_variance):
+class constMean(nn.Module):
+    def __init__(self, output_dim):
+        super().__init__()
+        self.mean = nn.Parameter(torch.zeros(output_dim))
+    def forward(self, x):
+        return self.mean.expand(x.shape[0], -1)
+
+class CIGP_withMean(nn.Module):
+    def __init__(self, input_dim, output_dim, kernel, noise_variance):
         super().__init__()
         self.kernel = kernel
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
-        # define a mean function according to the input shape
+        # define a simple mean function according to the input shape
         # self.mean_func = nn.Sequential(
-        #     nn.Linear(1, 3),
-        #     # nn.ReLU(),
-        #     # nn.Linear(10, 3)
+        #     nn.Linear(input_dim, 5),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(5, output_dim)
         # )
-        self.mean_func = zeroMean
+        # self.mean_func = zeroMean
+        self.mean_func = constMean(output_dim)
+        # xTransform = gp_pack.Normalize_layer(x_train, dim=0, if_trainable =False)
+        # yTransform = 
 
     def forward(self, x_train, y_train, x_test):
+        # xNormalizer = gp_pack.Normalize_layer(x_train, dim=0, if_trainable =False)
+        # yNormalizer = gp_pack.Normalize0_layer(y_train, if_trainable =False)
+        # x_train = xNormalizer(x_train)
+        # y_train = yNormalizer(y_train)
+        # x_test = xNormalizer(x_test)
+        
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
         K_s = self.kernel(x_train, x_test)
         K_ss = self.kernel(x_test, x_test)
@@ -54,7 +71,7 @@ if __name__ == '__main__':
 
     # SIMO test 1
     torch.manual_seed(1)       #set seed for reproducibility
-    xte = torch.linspace(-1, 7, 100).view(-1, 1)
+    xte = torch.linspace(-1, 12, 100).view(-1, 1)
     yte = torch.hstack([torch.sin(xte),
                        torch.cos(xte),
                         xte.tanh()] )
@@ -73,24 +90,24 @@ if __name__ == '__main__':
     # define kernel function
     kernel1 = kernel.ARDKernel(1)
     # kernel1 = kernel.MaternKernel(1)   
-    kernel1 = kernel.LinearKernel(1,-1.0,1.)   
+    # kernel1 = kernel.LinearKernel(1,-1.0,1.)   
     kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
     
-    GPmodel = CIGP(kernel=kernel1, noise_variance=1.0)
-    optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-1)
+    GPmodel = CIGP_withMean(1,3,kernel=kernel1, noise_variance=1.0)
+    optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-2)
     
-    for i in range(1000):
+    for i in range(300):
         startTime = time.time()
         optimizer.zero_grad()
         loss = -GPmodel.log_likelihood(xtr, ytr)
         loss.backward()
         optimizer.step()
-        print('iter', i, 'nll:{:.5f}'.format(loss.item()))
-        timeElapsed = time.time() - startTime
-        print('time elapsed: {:.3f}s'.format(timeElapsed))
+        print('iter', i, 'nll:{:.5f}'.format(loss.item()), 'time elapsed: {:.3f}s'.format(time.time() - startTime))
         
     with torch.no_grad():
         ypred, ypred_var = GPmodel.forward(xtr, ytr, xte)
+        # treat each query/test point as a single point
+        ypred_var = ypred_var.diag().view(-1,1).expand_as(ypred)
         
 
     # plt.close('all')

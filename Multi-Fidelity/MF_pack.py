@@ -15,6 +15,7 @@
 # required functions:
 # 1. (x,y1,y2) = get_overlapInput_data(fidelity_index1, fidelity_index2)
 # 2. (x, y1, x2, y2) = get_uniqueInput_data(fidelity_index1, fidelity_index2)
+# 3. add_data(fidelity_index, x, y) and update index system
 
 
 import torch
