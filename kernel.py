@@ -345,4 +345,149 @@ class MaternKernel_scalarLengthScale(nn.Module):
         sqdist = torch.sum(x1**2, 1).reshape(-1, 1) + torch.sum(x2**2, 1) - 2 * torch.matmul(x1, x2.T)
         return self.signal_variance.pow(2) * torch.pow(1 + torch.sqrt(3 * sqdist) / self.length_scale.pow(2), -self.nu)
 
-        
+     Args:
+            x1 (torch.Tensor): The first input tensor.
+            x2 (torch.Tensor): The second input tensor.
+
+        Returns:
+            torch.Tensor: The covariance matrix.
+
+        """
+        sqdist = torch.sum(x1**2, 1).reshape(-1, 1) + torch.sum(x2**2, 1) - 2 * torch.matmul(x1, x2.T)
+        return self.signal_variance.pow(2) * torch.pow(1 + torch.sqrt(3 * sqdist) / self.length_scale.pow(2), -self.nu)
+
+class RBFKernel(nn.Module):
+    """
+    Radial Basis Function kernel module with scalar length scale.
+
+    The RBF kernel is defined as:
+        K(x, x') = σ² exp(-||x - x'||² / (2l²))
+    where:
+        σ² is the signal variance,
+        l is the length scale,
+        ||x - x'|| is the Euclidean distance between the input vectors.
+
+    Args:
+        length_scale (float): The length scale value. Default is 1.0.
+        signal_variance (float): The signal variance value. Default is 1.0.
+
+    Attributes:
+        length_scale (nn.Parameter): The length scale.
+        signal_variance (nn.Parameter): The signal variance.
+
+    """
+
+    def __init__(self, length_scale=1.0, signal_variance=1.0):
+        super().__init__()
+        self.length_scale = nn.Parameter(torch.tensor([length_scale]))
+        self.signal_variance = nn.Parameter(torch.tensor([signal_variance]))
+
+    def forward(self, x1, x2):
+        """
+        Compute the covariance matrix using the RBF kernel.
+
+        Args:
+            x1 (torch.Tensor): The first input tensor.
+            x2 (torch.Tensor): The second input tensor.
+
+        Returns:
+            torch.Tensor: The covariance matrix.
+
+        """
+        x1_sq = torch.sum(x1 ** 2, 1).reshape(-1, 1)
+        x2_sq = torch.sum(x2 ** 2, 1).reshape(1, -1)
+        sqdist = x1_sq + x2_sq - 2 * torch.matmul(x1, x2.T)
+        return self.signal_variance.pow(2) * torch.exp(-0.5 / self.length_scale.pow(2) * sqdist)
+
+
+class PERKernel(nn.Module):
+    """
+    Periodic kernel (exp-sine-squared) module with scalar length scale, signal variance, and period.
+
+    The kernel is defined as:
+        K(x, x') = σ² exp(-2 sin²(π|x - x'| / p) / l²)
+    where:
+        σ² is the signal variance,
+        l is the length scale,
+        p is the period of the kernel,
+        |x - x'| is the absolute difference between inputs.
+
+    Args:
+        length_scale (float): The length scale value (l). Default is 1.0.
+        signal_variance (float): The signal variance value (σ²). Default is 1.0.
+        period (float): The period of the kernel (p). Default is 1.0.
+
+    Attributes:
+        length_scale (nn.Parameter): The length scale (l).
+        signal_variance (nn.Parameter): The signal variance (σ²).
+        period (nn.Parameter): The period (p).
+
+    """
+
+    def __init__(self, length_scale=1.0, signal_variance=1.0, period=1.0):
+        super().__init__()
+        self.length_scale = nn.Parameter(torch.tensor([length_scale]))
+        self.signal_variance = nn.Parameter(torch.tensor([signal_variance]))
+        self.period = nn.Parameter(torch.tensor([period]))
+
+    def forward(self, x1, x2):
+        """
+        Compute the covariance matrix using the periodic kernel.
+
+        Args:
+            x1 (torch.Tensor): The first input tensor.
+            x2 (torch.Tensor): The second input tensor.
+
+        Returns:
+            torch.Tensor: The covariance matrix.
+
+        """
+        dist = torch.abs(x1.unsqueeze(1) - x2.unsqueeze(0))
+        sin_term = torch.sin(math.pi * dist / self.period).pow(2)
+        return self.signal_variance.pow(2) * torch.exp(-2 * sin_term / self.length_scale.pow(2))
+
+
+class Neural_kernel(nn.Module):
+    """
+    Neural kernel module with scalar length scale.
+
+    Args:
+        RBF: length_scale ; signal_variance; (float) 
+        Linear: length_scales; signal_variance; center; (float)
+        RQ: lengthscale ; signal_variance ; alpha; (float)
+        PER: length_scale ; signal_variance; period; (float)
+        input_dim: the input dim of input vector.
+        base_kernel_num: the number of base kernel. Default is 3.(The number and the kind of base kernel can change as you need)
+    Attributes:
+        RBF: length_scale (nn.Parameter): The length scale value.
+        Linear: variance (nn.Parameter) : A variance parameter.
+        RQ: lengthscale and alpha (nn.Parameter): The lengthscale parameter. The rational quadratic relative weighting parameter.
+
+    """
+    def __init__(self, input_dim, base_kernel_num=3):
+        super(Neural_kernel, self).__init__()
+        self.RBFKernel = RBFKernel()
+        self.Linekern = LinearKernel(input_dim=input_dim)
+        self.RQKern = RationalQuadraticKernel()
+        self.PerKern = PERKernel()
+        self.linear = nn.Linear(base_kernel_num, 1)
+
+    def forward(self,x1,x2):
+        """
+        Compute the covariance matrix using the Matern kernel with scalar length scale.
+
+        Args:
+            x1 (torch.Tensor): The first input tensor.
+            x2 (torch.Tensor): The second input tensor.
+
+        Returns:
+            torch.Tensor: The covariance matrix.
+
+        """
+        var1 = self.RBFKernel.forward(x1,x2)
+        var2 = self.Linekern.forward(x1, x2).to_dense()
+        var3 = self.RQKern.forward(x1, x2)
+        var = torch.stack((var1, var2,var3), dim=-1)  # 沿着新的维度（第三维）合并
+        var_lin = self.linear(var).reshape(var1.shape)
+        var = torch.exp(var_lin)
+        return var        
