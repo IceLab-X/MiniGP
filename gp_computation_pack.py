@@ -48,6 +48,46 @@ class Normalize_layer(nn.Module):
 #         return self.warp_func.inverse(x)
 
 
+class cdf(nn.Module):
+    def __init__(self,concentration1_prior, concentration0_prior):
+        super().__init__()
+        self.concentration1_prior=concentration1_prior
+        self.concentration0_prior=concentration0_prior
+        self.low = torch.full_like(self.concentration0, 0)
+        self.high = torch.full_like(self.concentration0, 1)
+
+    def forward(self, x):
+        x= -1 * (x.clamp(0, 1) - 0.5) + 0.5
+        x = x * (self.high - self.low) + self.low
+        x= x.pow(self.concentration0_prior.reciprocal())
+        x= 1 - x
+        wrap_x=x.pow(self.concentration1_prior.reciprocal())
+        return wrap_x
+
+    def inverse(self, y):
+        y= y.pow(1 / self.concentration1_prior.reciprocal())
+        y= 1 - y
+        y= y.pow(1 / self.concentration0_prior.reciprocal())
+        y= -1 * (y - 0.5) + 0.5
+        return y
+
+class WarpLayer(nn.Module):
+    def __init__(self, warp_func, if_trainable=False):
+        super(WarpLayer, self).__init__()
+        self.warp_func = warp_func
+        self.if_trainable = if_trainable
+
+        if self.if_trainable:
+            for param in self.warp_func.parameters():
+                param.requires_grad = True
+
+    def forward(self, x):
+        return self.warp_func(x)
+
+    def inverse(self, y):
+        return self.warp_func.inverse(y)
+
+
 # compute the log likelihood of a normal distribution
 def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     """
@@ -131,4 +171,5 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
     else:
         raise ValueError('Kinv_method should be either direct or cholesky')
     
+    cov = cov.diag().view(-1, 1).expand_as(mu) ##important!!!
     return mu, cov

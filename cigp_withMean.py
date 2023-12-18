@@ -24,12 +24,12 @@ class CIGP(nn.Module):
         self.kernel = kernel
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
         # define a mean function according to the input shape
-        # self.mean_func = nn.Sequential(
-        #     nn.Linear(1, 3),
-        #     # nn.ReLU(),
-        #     # nn.Linear(10, 3)
-        # )
-        self.mean_func = zeroMean
+        self.mean_func = nn.Sequential(
+            nn.Linear(1, 3),
+            # nn.ReLU(),
+            # nn.Linear(10, 3)
+        )
+        # self.mean_func = zeroMean
 
     def forward(self, x_train, y_train, x_test):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     # define kernel function
     kernel1 = kernel.ARDKernel(1)
     # kernel1 = kernel.MaternKernel(1)   
-    kernel1 = kernel.LinearKernel(1,-1.0,1.)   
+    # kernel1 = kernel.LinearKernel(1,-1.0,1.)   
     kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
     
     GPmodel = CIGP(kernel=kernel1, noise_variance=1.0)
