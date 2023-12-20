@@ -26,21 +26,31 @@ class constMean(nn.Module):
     def forward(self, x):
         return self.mean.expand(x.shape[0], -1)
 
-class CIGP_withMean(nn.Module):
+class CIGP_DKL(nn.Module):
     def __init__(self, input_dim, output_dim, kernel, noise_variance):
         super().__init__()
         self.kernel = kernel
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
         # define a simple mean function according to the input shape
-        # self.mean_func = nn.Sequential(
-        #     nn.Linear(input_dim, 5),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(5, output_dim)
-        # )
+        self.mean_func = nn.Sequential(
+            nn.Linear(input_dim, 5),
+            nn.Sigmoid(),
+            nn.Linear(5, output_dim)
+        )
         # self.mean_func = zeroMean
-        self.mean_func = constMean(output_dim)
+        # self.mean_func = constMean(output_dim)
         # xTransform = gp_pack.Normalize_layer(x_train, dim=0, if_trainable =False)
         # yTransform = 
+        self.FeatureExtractor = torch.nn.Sequential(nn.Linear(input_dim, input_dim*2),
+            nn.LeakyReLU(),
+            nn.Linear(input_dim *2, input_dim * 2),
+            nn.LeakyReLU(),
+            nn.Linear(input_dim * 2, input_dim * 2),
+            nn.LeakyReLU(),
+            nn.Linear(input_dim * 2, input_dim))
+        
+        # self.FeatureExtractor = torch.nn.Sequential(nn.Linear(input_dim, input_dim))
+        
 
     def forward(self, x_train, y_train, x_test):
         # xNormalizer = gp_pack.Normalize_layer(x_train, dim=0, if_trainable =False)
@@ -49,21 +59,33 @@ class CIGP_withMean(nn.Module):
         # y_train = yNormalizer(y_train)
         # x_test = xNormalizer(x_test)
         
-        K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
-        K_s = self.kernel(x_train, x_test)
-        K_ss = self.kernel(x_test, x_test)
         mean_part_train = self.mean_func(x_train)
         mean_part_test = self.mean_func(x_test)
         
+        x_train = self.FeatureExtractor(x_train)
+        x_test = self.FeatureExtractor(x_test)
+        
+        K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
+        K_s = self.kernel(x_train, x_test)
+        K_ss = self.kernel(x_test, x_test)
+
+        
         mu, cov = gp_pack.conditional_Gaussian(y_train-mean_part_train, K, K_s, K_ss)
         cov = cov + self.noise_variance.pow(2) * torch.eye(len(x_test))
+        
         return mu + mean_part_test, cov
 
     def log_likelihood(self, x_train, y_train):
-        K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
-        mean_part_train = self.mean_func(x_train)
-        return gp_pack.Gaussian_log_likelihood(y_train - mean_part_train, K)
         
+        mean_part_train = self.mean_func(x_train)
+        
+        x_train = self.FeatureExtractor(x_train)
+        K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
+        
+        return gp_pack.Gaussian_log_likelihood(y_train - mean_part_train, K)  / x_train.shape[0]
+        # modified by Wei Xing to penalize the variance term 
+        # return gp_pack.Gaussian_log_likelihood(y_train - mean_part_train, K) / x_train.shape[0] - torch.log(self.noise_variance) * 2
+    
 # downstate here how to use the GP model
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -94,7 +116,7 @@ if __name__ == '__main__':
     # kernel1 = kernel.LinearKernel(1,-1.0,1.)   
     kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
     
-    GPmodel = CIGP_withMean(1,3,kernel=kernel1, noise_variance=1.0)
+    GPmodel = CIGP_DKL(1,3,kernel=kernel1, noise_variance=1.0)
     optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-2)
     
     for i in range(300):
