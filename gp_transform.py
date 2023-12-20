@@ -33,3 +33,27 @@ class Normalize_layer(nn.Module):
         return (x - self.mean) / self.std
     def inverse(self, x):
         return x * self.std + self.mean
+
+# TODO: Not finished yet, this is just a draft. TO finish, see, https://en.wikipedia.org/wiki/Beta_distribution and https://botorch.org/tutorials/bo_with_warped_gp.
+class BetaCDF_Warp_Layer(nn.Module):
+    # warp layer for GP models.
+    # Warming: input x should be normalized to [0, 1] before using this layer.
+    def __init__(self, dim, a0 = 1, b0 = 1):
+        super(BetaCDF_Warp_Layer, self).__init__()
+        self.a = nn.Parameter(torch.ones(dim) * a0)
+        self.b = nn.Parameter(torch.ones(dim) * b0)
+
+    def forward(self, x):
+        # use the beta cdf to warp the input x
+        # return torch.distributions.beta.Beta(self.a, self.b).cdf(x)
+        # 
+        # OR explicitly compute the cdf
+        return x.pow(self.a.abs() - 1) * (1 - x).pow(self.b - 1) / torch.special.beta(self.a, self.b)
+        # TODO: need to check why torch.special.beta(self.a, self.b) not working 
+        # return x.pow(self.a.abs() - 1.) * (1 - x).pow(self.b.abs() - 1.) / torch.distributions.beta.Beta(self.a.abs(), self.b.abs()).mean
+        
+
+    def inverse(self, y):
+        #  inverse the beta cdf to get the original x
+        # TODO: need to test the capcity for vector input
+        return torch.distributions.beta.Beta(self.a.abs(), self.b.abs()).icdf(y)
