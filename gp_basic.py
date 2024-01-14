@@ -10,18 +10,54 @@ import kernel as kernel
 import time as time
 
 class GP_basic(nn.Module):
+    """
+    Gaussian Process basic model.
+    ! We do not store the training data in the model, so the training data should be passed in every time when calling the forward function.
+    This is to avoid the large memory usage when the training data is large. In our philosophy, the model should contains only trainable parameters (and functions), not the heavy-weighted data.
+
+    Args:
+        kernel (callable): The kernel function used for computing the covariance matrix.
+        noise_variance (float): The variance of the Gaussian noise.
+
+    Attributes:
+        kernel (callable): The kernel function used for computing the covariance matrix.
+        noise_variance (torch.Tensor): The variance of the Gaussian noise.
+
+    Methods:
+        forward(x_train, y_train, x_test, Kinv_method='cholesky3'): Computes the mean and covariance of the Gaussian process.
+        log_likelihood(x_train, y_train, Kinv_method='cholesky3'): Computes the log-likelihood of the Gaussian process.
+
+    """
+
     def __init__(self, kernel, noise_variance):
         super().__init__()
         self.kernel = kernel
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
 
     def forward(self, x_train, y_train, x_test, Kinv_method='cholesky3'):
+        """
+        Computes the mean and covariance of the Gaussian process.
+
+        Args:
+            x_train (torch.Tensor): The input training data.
+            y_train (torch.Tensor): The target training data.
+            x_test (torch.Tensor): The input test data.
+            Kinv_method (str, optional): The method used for computing the inverse of the covariance matrix. 
+                Defaults to 'cholesky3'.
+
+        Returns:
+            tuple: A tuple containing the mean and covariance of the Gaussian process.
+
+        Raises:
+            ValueError: If Kinv_method is not 'direct' or 'cholesky'.
+
+        """
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
         K_s = self.kernel(x_train, x_test)
         K_ss = self.kernel(x_test, x_test)
         
-        # Kinv_method = 'cholesky2'    # 'direct' or 'cholesky'
-        if Kinv_method == 'cholesky1':   # kernel inverse is not stable, use cholesky decomposition instead
+        if Kinv_method == 'cholesky1':
+            # kernel inverse is not stable, use cholesky decomposition instead
             L = torch.cholesky(K)
             L_inv = torch.inverse(L)
             K_inv = L_inv.T @ L_inv
@@ -34,8 +70,7 @@ class GP_basic(nn.Module):
             L = torch.cholesky(K)
             alpha = torch.cholesky_solve(y_train, L)
             mu = K_s.T @ alpha
-            # v = torch.cholesky_solve(K_s, L)    # wrong implementation
-            v = L.inverse() @ K_s   # correct implementation
+            v = L.inverse() @ K_s
             cov = K_ss - v.T @ v
         elif Kinv_method == 'direct':
             K_inv = torch.inverse(K)
@@ -46,9 +81,24 @@ class GP_basic(nn.Module):
         return mu.squeeze(), cov
             
     def log_likelihood(self, x_train, y_train, Kinv_method='cholesky3'):
+        """
+        Computes the log-likelihood of the Gaussian process.
+
+        Args:
+            x_train (torch.Tensor): The input training data.
+            y_train (torch.Tensor): The target training data.
+            Kinv_method (str, optional): The method used for computing the inverse of the covariance matrix. 
+                Defaults to 'cholesky3'.
+
+        Returns:
+            torch.Tensor: The log-likelihood of the Gaussian process.
+
+        Raises:
+            ValueError: If Kinv_method is not 'direct' or 'cholesky'.
+
+        """
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
         
-        # Kinv_method = 'cholesky3'
         if Kinv_method == 'cholesky1':
             L = torch.cholesky(K)
             L_inv = torch.inverse(L)
@@ -58,7 +108,6 @@ class GP_basic(nn.Module):
             L = torch.cholesky(K)
             return -0.5 * (y_train.T @ torch.cholesky_solve(y_train, L) + torch.logdet(K) + len(x_train) * np.log(2 * np.pi))
         elif Kinv_method == 'cholesky3':
-            # fastest implementation so far
             L = torch.cholesky(K)
             return -0.5 * (y_train.T @ torch.cholesky_solve(y_train, L) + L.diag().log().sum() + len(x_train) * np.log(2 * np.pi))
         elif Kinv_method == 'direct':

@@ -29,7 +29,8 @@ class CIGP(nn.Module):
         # v = torch.cholesky_solve(K_s, L)    # wrong implementation
         v = L.inverse() @ K_s   # correct implementation
         cov = K_ss - v.T @ v
-
+        
+        cov = cov + self.noise_variance.pow(2) * torch.eye(len(x_test))
         cov = cov.diag().view(-1, 1).expand_as(mu)
         return mu.squeeze(), cov
             

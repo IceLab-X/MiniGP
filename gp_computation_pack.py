@@ -13,28 +13,7 @@ import numpy as np
 EPS = 1e-9
 
 # define a normalization module
-class Normalize0_layer(nn.Module):
-    # special normalization, i.e., all dimensions are normalized together. This works well for conditional independent GP (CIGP) for normalizing y.
-    def __init__(self, X0, if_trainable =False):
-        super().__init__()
-        self.mean = nn.Parameter(X0.mean(), requires_grad=if_trainable)
-        self.std = nn.Parameter(X0.std(), requires_grad=if_trainable)
-    def forward(self, x):
-        return (x - self.mean) / self.std
-    def inverse(self, x):
-        return x * self.std + self.mean
-    
-class Normalize_layer(nn.Module):
-    # normal normalization. It is basically the pytorch batch normalization, but the mean and std are not trainable. 
-    # It work well for normalizing the input x.
-    def __init__(self, X0, dim=0, if_trainable =False):
-        super().__init__()
-        self.mean = nn.Parameter(X0.mean(dim), requires_grad=if_trainable)
-        self.std = nn.Parameter(X0.std(dim), requires_grad=if_trainable)
-    def forward(self, x):
-        return (x - self.mean) / self.std
-    def inverse(self, x):
-        return x * self.std + self.mean
+
     
 # TODO: add a warpping layer. follow https://botorch.org/tutorials/bo_with_warped_gp 
 # class warp_layer(nn.Module):
@@ -107,9 +86,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
         raise ValueError('Kinv_method should be either direct or cholesky')
     
 def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
-
-    Sigma = Sigma + torch.eye(len(Sigma)) * EPS
-    
+    # Sigma = Sigma + torch.eye(len(Sigma)) * EPS
     if Kinv_method == 'cholesky1':   # kernel inverse is not stable, use cholesky decomposition instead
         L = torch.cholesky(Sigma)
         L_inv = torch.inverse(L)
