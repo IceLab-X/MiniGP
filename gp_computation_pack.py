@@ -50,17 +50,17 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     assert len(y.shape) == 2 and len(cov.shape) == 2, "y, mean, cov should be 2D tensors"
     
     if Kinv_method == 'cholesky1':
-        L = torch.cholesky(cov)
+        L = torch.linalg.cholesky(cov)
         L_inv = torch.inverse(L)
         K_inv = L_inv.T @ L_inv
         return -0.5 * (y.T @ K_inv @ y + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
     elif Kinv_method == 'cholesky2':
-        L = torch.cholesky(cov)
+        L = torch.linalgcholesky(cov)
         return -0.5 * (y.T @ torch.cholesky_solve(y, L) + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
     
     elif Kinv_method == 'cholesky3':
         # fastest implementation so far
-        L = torch.cholesky(cov)
+        L = torch.linalg.cholesky(cov)
         # return -0.5 * (y_use.T @ torch.cholesky_solve(y_use, L) + L.diag().log().sum() + len(x_train) * np.log(2 * np.pi))
         if y.shape[1] > 1:
             Warning('y_use.shape[1] > 1, will treat each column as a sample (for the joint normal distribution) and sum the log-likelihood')
@@ -69,16 +69,17 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
             # 
             y_dim = y.shape[1]
             log_det_K = 2 * torch.sum(torch.log(torch.diag(L)))
-            Alpha = torch.cholesky_solve(y, L, upper = False)
-            return - 0.5 * ( (Alpha ** 2).sum() + log_det_K * y_dim + len(y) * y_dim * np.log(2 * np.pi) )
+            gamma = torch.cholesky_solve(y, L, upper = False)
+            return - 0.5 * ( (gamma ** 2).sum() + log_det_K * y_dim + len(y) * y_dim * np.log(2 * np.pi) )
         else:
-            return -0.5 * (y.T @ torch.cholesky_solve(y, L) + L.diag().log().sum() + len(y) * np.log(2 * np.pi))
+            gamma = torch.cholesky_solve(y, L)
+            return -0.5 * (gamma.T @ gamma + L.diag().log().sum() + len(y) * np.log(2 * np.pi))
 
     elif Kinv_method == 'direct':
         K_inv = torch.inverse(cov)
         return -0.5 * (y.T @ K_inv @ y + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
     elif Kinv_method == 'torch_distribution_MN1':
-        L = torch.cholesky(cov)
+        L = torch.linalg.cholesky(cov)
         return torch.distributions.MultivariateNormal(y, scale_tril=L).log_prob(y)
     elif Kinv_method == 'torch_distribution_MN2':
         return torch.distributions.MultivariateNormal(y, cov).log_prob(y)
@@ -88,7 +89,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
 def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
     # Sigma = Sigma + torch.eye(len(Sigma)) * EPS
     if Kinv_method == 'cholesky1':   # kernel inverse is not stable, use cholesky decomposition instead
-        L = torch.cholesky(Sigma)
+        L = torch.linalg.cholesky(Sigma)
         L_inv = torch.inverse(L)
         K_inv = L_inv.T @ L_inv
         alpha = K_inv @ y
@@ -97,7 +98,7 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
         cov = K_ss - v.T @ v
     elif Kinv_method == 'cholesky3':
         # recommended implementation, fastest so far
-        L = torch.cholesky(Sigma)
+        L = torch.linalg.cholesky(Sigma)
         alpha = torch.cholesky_solve(y, L)
         mu = K_s.T @ alpha
         # v = torch.cholesky_solve(K_s, L)    # wrong implementation

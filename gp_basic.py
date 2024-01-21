@@ -58,7 +58,7 @@ class GP_basic(nn.Module):
         
         if Kinv_method == 'cholesky1':
             # kernel inverse is not stable, use cholesky decomposition instead
-            L = torch.cholesky(K)
+            L = torch.linalg.cholesky(K)
             L_inv = torch.inverse(L)
             K_inv = L_inv.T @ L_inv
             alpha = K_inv @ y_train
@@ -67,7 +67,7 @@ class GP_basic(nn.Module):
             cov = K_ss - v.T @ v
         elif Kinv_method == 'cholesky3':
             # recommended implementation, fastest so far
-            L = torch.cholesky(K)
+            L = torch.linalg.cholesky(K)
             alpha = torch.cholesky_solve(y_train, L)
             mu = K_s.T @ alpha
             v = L.inverse() @ K_s
@@ -100,16 +100,18 @@ class GP_basic(nn.Module):
         K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
         
         if Kinv_method == 'cholesky1':
-            L = torch.cholesky(K)
+            L = torch.linalg.cholesky(K)
             L_inv = torch.inverse(L)
             K_inv = L_inv.T @ L_inv
             return -0.5 * (y_train.T @ K_inv @ y_train + torch.logdet(K) + len(x_train) * np.log(2 * np.pi))
         elif Kinv_method == 'cholesky2':
-            L = torch.cholesky(K)
-            return -0.5 * (y_train.T @ torch.cholesky_solve(y_train, L) + torch.logdet(K) + len(x_train) * np.log(2 * np.pi))
+            L = torch.linalg.cholesky(K)
+            gamma = torch.cholesky_solve(y_train, L)
+            return -0.5 * (gamma.T @ gamma + torch.logdet(K) + len(x_train) * np.log(2 * np.pi))
         elif Kinv_method == 'cholesky3':
-            L = torch.cholesky(K)
-            return -0.5 * (y_train.T @ torch.cholesky_solve(y_train, L) + L.diag().log().sum() + len(x_train) * np.log(2 * np.pi))
+            L = torch.linalg.cholesky(K)
+            gamma = torch.cholesky_solve(y_train, L)
+            return -0.5 * (gamma.T @ gamma + L.diag().log().sum() + len(x_train) * np.log(2 * np.pi))
         elif Kinv_method == 'direct':
             K_inv = torch.inverse(K)
             return -0.5 * (y_train.T @ K_inv @ y_train + torch.logdet(K) + len(x_train) * np.log(2 * np.pi))
@@ -139,7 +141,7 @@ if __name__ == '__main__':
     kernel1 = kernel.MaternKernel(1)   
     kernel1 = kernel.LinearKernel(1,-1.0,1.)   
     
-    # kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
+    kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
     
     GPmodel = GP_basic(kernel=kernel1, noise_variance=1.0)
     optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-1)
@@ -158,7 +160,7 @@ if __name__ == '__main__':
         ypred, ypred_var = GPmodel.forward(xtr, ytr, xte)
         
     plt.figure()
-    plt.errorbar(xte, ypred.reshape(-1).detach(), ypred_var.diag().sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
+    plt.errorbar(xte.squeeze(), ypred.reshape(-1).detach(), ypred_var.diag().sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
     plt.plot(xtr, ytr, 'b+')
     plt.fill_between(xte.squeeze(), ypred.reshape(-1).detach() - ypred_var.diag().sqrt().squeeze().detach(), ypred.reshape(-1).detach() + ypred_var.diag().sqrt().squeeze().detach(), alpha=0.2)
     plt.draw()
