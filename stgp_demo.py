@@ -12,7 +12,7 @@ def kronecker(A, B):
 class SE_kernel(nn.Module):
     def __init__(self, length_scale=1.0):
         super().__init__()
-        self.length_scale = torch.exp(nn.Parameter(torch.log(torch.tensor(length_scale))))
+        self.length_scale = nn.Parameter(torch.exp(torch.log(torch.tensor(length_scale))))
     def forward(self, X, X2):
         X = X / self.length_scale.expand(X.size(0), X.size(1))
         X2 = X2 / self.length_scale.expand(X2.size(0), X2.size(1))
@@ -56,9 +56,8 @@ class stgp(nn.Module):
 
         # self.K = eigen_vector_st @ eigen_value_st.diag_embed() @ eigen_vector_st.transpose(-2, -1)
         
-        # detach.cpu()?
-        self.sigma_inverse = sigma_inverse.detach().cpu()
-        self.alpha = sigma_inverse @ stData.transpose(-2, -1).reshape(-1, 1).detach().cpu()
+        self.sigma_inverse = sigma_inverse
+        self.alpha = sigma_inverse @ stData.transpose(-2, -1).reshape(-1, 1)  # sigmma^(-1)y = alpha
 
         nll = 0
         nll += 0.5 * (eigen_value_st + torch.exp(self.log_noise_variance)).log().sum()
@@ -76,6 +75,7 @@ class stgp(nn.Module):
         yVar = torch.zeros(test_st_K.size(0))
         for i in range(test_st_K.size(0)):
             yVar[i] = self.log_signal_variance.exp() - test_st_K[i:i + 1,:] @ self.sigma_inverse @ test_st_K[i:i + 1, :].t()
+        
         yPred = yPred.view(test_time_coordinates.size(0), test_space_coordinates.size(0)).transpose(-2, -1)
         yVar = yVar.view(test_time_coordinates.size(0), test_space_coordinates.size(0)).transpose(-2, -1)
         
@@ -103,10 +103,11 @@ if __name__ == '__main__':
     str = torch.tensor(str)
     time = torch.tensor(time)  
     pm25 = torch.tensor(pm25)
-
+    str_daq = torch.tensor(str_daq)
+    
     model = stgp()
     # nll1 = model.negative_log_likelihood(str, time, pm25)
-    str_daq = torch.tensor(str_daq)
+    
     # with torch.no_grad():
     #     yPred, yVar = model(str, time, str_daq, time)
 
@@ -114,7 +115,7 @@ if __name__ == '__main__':
     # plt.plot(pm25_daq.T,'-')    #show the daq observations
     # plt.show()
 
-    train_stgp(model, str, time, pm25, lr=0.1, epochs=5)
+    train_stgp(model, str, time, pm25, lr=0.1, epochs=1)
     with torch.no_grad():
         yPred, yVar = model(str, time, str_daq, time)
 
