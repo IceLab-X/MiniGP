@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from scipy.io import loadmat
+from kernel import SquaredExponentialKernel
 import matplotlib.pyplot as plt
 JITTER = 1e-1
 
@@ -9,21 +10,6 @@ def kronecker(A, B):
     AB = AB.view(A.size(0) * B.size(0), A.size(1) * B.size(1))
     return AB
 
-class SE_kernel(nn.Module):
-    def __init__(self, length_scale=1.0):
-        super().__init__()
-        self.length_scale = nn.Parameter(torch.exp(torch.log(torch.tensor(length_scale))))
-    def forward(self, X, X2):
-        X = X / self.length_scale.expand(X.size(0), X.size(1))
-        X2 = X2 / self.length_scale.expand(X2.size(0), X2.size(1))
-
-        X_norm2 = torch.sum(X * X, dim=1).view(-1, 1)
-        X2_norm2 = torch.sum(X2 * X2, dim=1).view(-1, 1)
-
-        # compute effective distance
-        K = -2.0 * X @ X2.t() + X_norm2.expand(X.size(0), X2.size(0)) + X2_norm2.t().expand(X.size(0), X2.size(0))
-        K = torch.exp(-K) * 1.0
-        return K
 
 class stgp(nn.Module):
     def __init__(self, latlong_length_scale=4300., elevation_length_scale=30., time_length_scale=0.25,
@@ -33,9 +19,9 @@ class stgp(nn.Module):
         self.log_noise_variance = nn.Parameter(torch.log(torch.tensor(noise_variance)))
         self.log_signal_variance = nn.Parameter(torch.log(torch.tensor(signal_variance)))
 
-        self.latlong_kernel = SE_kernel(latlong_length_scale)
-        self.elevation_kernel = SE_kernel(elevation_length_scale)
-        self.temporal_kernel = SE_kernel(time_length_scale)
+        self.latlong_kernel = SquaredExponentialKernel(length_scale = latlong_length_scale)
+        self.elevation_kernel = SquaredExponentialKernel(length_scale = elevation_length_scale)
+        self.temporal_kernel = SquaredExponentialKernel(length_scale = time_length_scale)
         
     def negative_log_likelihood(self, space_coordinates, time_coordinates, stData):
 
@@ -52,16 +38,15 @@ class stgp(nn.Module):
         eigen_value_st = kronecker(eigen_value_t.view(-1, 1), eigen_value_s.view(-1, 1)).view(-1)
         eigen_value_st_plus_noise_inverse = 1. / (eigen_value_st + torch.exp(self.log_noise_variance))
 
-        sigma_inverse = eigen_vector_st @ eigen_value_st_plus_noise_inverse.diag_embed() @ eigen_vector_st.transpose(-2, -1)
-
-        # self.K = eigen_vector_st @ eigen_value_st.diag_embed() @ eigen_vector_st.transpose(-2, -1)
-        
-        self.sigma_inverse = sigma_inverse
-        self.alpha = sigma_inverse @ stData.transpose(-2, -1).reshape(-1, 1)  # sigmma^(-1)y = alpha
+        Lambda_st = eigen_value_st_plus_noise_inverse.diag_embed()
+        A = torch.flatten(eigen_vector_t.transpose(-2, -1) @ stData.transpose(-2, -1) @ eigen_vector_s).unsqueeze(-1)        
+        self.alpha = Lambda_st @ A
+        self.Lambda_st = Lambda_st
+        self.eigen_vector_st = eigen_vector_st
 
         nll = 0
         nll += 0.5 * (eigen_value_st + torch.exp(self.log_noise_variance)).log().sum()
-        nll += 0.5 * (stData.transpose(-2, -1).reshape(1, -1) @ self.alpha).sum()
+        nll += 0.5 * (A.transpose(-2, -1) @ self.alpha).sum()
         return nll
 
     def forward(self, train_space_coordinates, train_time_coordinates, test_space_coordinates, test_time_coordinates):
@@ -71,11 +56,18 @@ class stgp(nn.Module):
         test_spatial_K = test_latlong_K * test_elevation_K
         test_temporal_K = self.temporal_kernel(test_time_coordinates, train_time_coordinates)
         test_st_K = kronecker(test_temporal_K, test_spatial_K)
-        yPred = test_st_K @ self.alpha
-        yVar = torch.zeros(test_st_K.size(0))
-        for i in range(test_st_K.size(0)):
-            yVar[i] = self.log_signal_variance.exp() - test_st_K[i:i + 1,:] @ self.sigma_inverse @ test_st_K[i:i + 1, :].t()
+        yPred = test_st_K @ self.eigen_vector_st @self.alpha
+        # yVar = torch.zeros(test_st_K.size(0))
+        sigma_inverse = self.eigen_vector_st @ self.Lambda_st @ self.eigen_vector_st.transpose(-2, -1)
+        # for i in range(test_st_K.size(0)):
+        #     yVar[i] = self.log_signal_variance.exp() - test_st_K[i:i + 1,:] @ sigma_inverse @ test_st_K[i:i + 1, :].t()
         
+        K_space_star2 = self.latlong_kernel(test_space_coordinates[:, 0:2], test_space_coordinates[:, 0:2])
+        K_time_star2 = self.temporal_kernel(test_time_coordinates, test_time_coordinates)
+        K_space_time_star2 = kronecker(K_time_star2, K_space_star2)
+        yVar = K_space_time_star2.diag() - (test_st_K @ sigma_inverse @ test_st_K.t()).diag()
+        
+        # yVar = self.log_signal_variance.exp().expand(test_st_K.size(0)) - (test_st_K @ sigma_inverse @ test_st_K.t()).diag()
         yPred = yPred.view(test_time_coordinates.size(0), test_space_coordinates.size(0)).transpose(-2, -1)
         yVar = yVar.view(test_time_coordinates.size(0), test_space_coordinates.size(0)).transpose(-2, -1)
         
@@ -106,21 +98,12 @@ if __name__ == '__main__':
     str_daq = torch.tensor(str_daq)
     
     model = stgp()
-    # nll1 = model.negative_log_likelihood(str, time, pm25)
-    
-    # with torch.no_grad():
-    #     yPred, yVar = model(str, time, str_daq, time)
 
-    # plt.plot(yPred.T,'--')  #show the predictions at the daq locations
-    # plt.plot(pm25_daq.T,'-')    #show the daq observations
-    # plt.show()
-
-    train_stgp(model, str, time, pm25, lr=0.1, epochs=1)
+    train_stgp(model, str, time, pm25, lr=0.1, epochs=100)
     with torch.no_grad():
         yPred, yVar = model(str, time, str_daq, time)
 
     plt.plot(yPred.T,'--')  #show the predictions at the daq locations
     plt.plot(pm25_daq.T,'-')    #show the daq observations
-    plt.show()
+    # plt.show()
     plt.savefig('1_10_TODO\\stgp.png')
-    pass

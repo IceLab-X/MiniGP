@@ -9,13 +9,10 @@ Wei W. Xing
 In this tutorial, we will discuss how to reduce te computational complexity when using Gaussian process to deal with structure data.
 
 ## Definiaion of structure data
-Structure data we discussed here is the data with some kind of structure, such as spatial-temporal data. The key thing is that they have a repeat corresponding input pattern.
+Structure data we discussed here is the data with some kind of structure, such as spatial-temporal data. The key thing is that they have a repeat corresponding input pattern. 
 
-<!-- For example, let say we have $n$ sensors with location $\mathbf{z}_i$ for $i = 1, 2, \cdots, n$.
-Each sensor measure some target value at time $t_j$ for $j = 1, 2, \cdots, m$, which results into observation data that can be written as a matrix $\mathbf{Y}$ of size $n \times m$. -->
-
-For example, let say we have $m$ sensors with location $\mathbf{z}_j$ for $j = 1, 2, \cdots, m$, and each sensor measure some target value at time $t_i$ for $i = 1, 2, \cdots, n$, which results into observation data that can be written as a matrix $\mathbf{Y}$ of size $n \times m$.
-
+For example, let say we have $n$ sensors with location $\mathbf{z}_i$ for $i = 1, 2, \cdots, n$.
+Each sensor measure some target value at time $t_j$ for $j = 1, 2, \cdots, m$, which results into observation data that can be written as a matrix $\mathbf{Y}$ of size $n \times m$.
 
 Now for a simple GP implementation, we can simply vectorize the data and use a new input $\mathbf{x} = [\mathbf{z}, t]$ to represent the location and time to learn the input-output relationship. However, this will result in a huge covariance matrix $\mathbf{K}$ of size $nm \times nm$.
 
@@ -59,12 +56,12 @@ When dealing with structured data like the spatial-temporal data mentioned earli
 ## Decomposing the Covariance Matrix
 
 For spatial-temporal data, the covariance matrix $\mathbf{K}$ can be decomposed into two smaller matrices: $\mathbf{K}_{\text{space}}$ and $\mathbf{K}_{\text{time}}$, representing the spatial and temporal components, respectively. The full covariance matrix can then be represented as:
-
 $$
 \mathbf{K} = \mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}}
 $$
+where 
+$[\mathbf{K}_{\text{space}}]_{ij} = k_{\text{space}}(\mathbf{z}_i, \mathbf{z}_j)$ is a $n \times n$ matrix with $k_{\text{space}}(\mathbf{z}_i, \mathbf{z}_j)$ being the spatial kernel function. Similarly, $[\mathbf{K}_{\text{time}}]_{ij} = k_{\text{time}}(t_i, t_j)$ is a $m \times m$ matrix with $k_{\text{time}}(t_i, t_j)$ being the temporal kernel function.
 
-where $[\mathbf{K}_{\text{space}}]_{ij} = k_{\text{space}}(\mathbf{z}_i, \mathbf{z}_j)$ is a $m \times m$ matrix with $k_{\text{space}}(\mathbf{z}_i, \mathbf{z}_j)$ being the spatial kernel function. Similarly, $[\mathbf{K}_{\text{time}}]_{ij} = k_{\text{time}}(t_i, t_j)$ is a $n \times n$ matrix with $k_{\text{time}}(t_i, t_j)$ being the temporal kernel function.
 
 
 ## Efficient Computation of Likelihood
@@ -74,11 +71,6 @@ The likelihood function can be rewritten using this decomposed covariance matrix
 $$
 p( vec(\mathbf{Y})) = \mathcal{N}(vec(\mathbf{Y}) | \mathbf{0}, \mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}} + \sigma^2 \mathbf{I})
 $$
-
-```
-[Important] The order of $K_{\text{space}}$ and $K_{\text{time}}$ in the Kronecker product is important. The above equation is correct. If we swap the order, the equation will be wrong. 
-```
-
 The likelihood computation can be further simplified by using the Kronecker product property:
 $$ 
 p( vec(\mathbf{Y})) = -\frac{1}{2} vec(\mathbf{Y})^T (\mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} vec(\mathbf{Y})\\- \frac{1}{2} \log |\mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}} + \sigma^2 \mathbf{I}| - \frac{nm}{2} \log 2 \pi 
@@ -109,50 +101,24 @@ The previous section shows how to reduce the computational complexity of the Gau
 Now putting the new inversion equation into the first term of the likelihood function, we have
 $$
  vec(\mathbf{Y})^T (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}}) (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T vec(\mathbf{Y}) \\
- = vec(\mathbf{A}) (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} vec(\mathbf{A})^T
+ = \mathbf{A} (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} \mathbf{A}^T
 $$
-where $ \mathbf{A} =\mathbf{U}_{\text{time}}^T \mathbf{Y} \mathbf{U}_{\text{space}} $.
-
-To derive this, remember the Kronecker product property at the beginning, $(\mathbf{A} \otimes \mathbf{B}) vec(\mathbf{Y}) = vec(\mathbf{B} \mathbf{Y} \mathbf{A}^T)$, we can rewrite 
-
+where $\mathbf{A} = (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T vec(\mathbf{Y})$. Remember the Kronecker product property, we can rewrite the above equation as
 $$
-(\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T vec(\mathbf{Y}) \\ =
+\mathbf{A} =  (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T vec(\mathbf{Y}) \\ =
 (\mathbf{U}_{\text{space}}^T \otimes \mathbf{U}_{\text{time}}^T) vec(\mathbf{Y}) \\ =
 vec( (\mathbf{U}_{\text{time}}^T \mathbf{Y} \mathbf{U}_{\text{space}})
 $$
-
-Here $\mathbf{A}$ is a $n \times m$ matrix, and $vec(\mathbf{A})$ is a $nm \times 1$ vector. The memory complexity is reduced to $O(nm)$ instead of build the matrix $\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}}$ with size $nm \times nm$.
+which is a $nm \times 1$ vector. The memory complexity is reduced to $O(nm)$ instead of build the matrix $\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}}$ with size $nm \times nm$.
 
 For the log determinant term, we can use the Kronecker product property to simplify it as well:
-
 $$
 \log |\mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}} + \sigma^2 \mathbf{I}| \\ =
 \log |\mathbf{U}_{\text{space}} \mathbf{\Lambda}_{\text{space}} \mathbf{U}_{\text{space}}^T \otimes \mathbf{U}_{\text{time}} \mathbf{\Lambda}_{\text{time}} \mathbf{U}_{\text{time}}^T + \sigma^2 \mathbf{I}| \\ = \log |(\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}}) (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I}) (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T|\\ = \log |(\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1}| \\
 = \log | \prod_{i=1}^{nm} ([\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}}  ]_{ii} + \sigma^2)| \\ = \sum_{i=1}^{nm} \log ([\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}}  ]_{ii} + \sigma^2)
 $$
 where $[\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}}  ]_{ii}$ is the $i$-th diagonal element of $\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}}$ (which is a $nm \times nm$ diagonal matrix).
-
 The simplification can be done because $\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}}$ is an orthogonal matrix, which means $\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}} (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T = \mathbf{I}$, (because $\mathbf{U}_{\text{space}}$ and $\mathbf{U}_{\text{time}}$ are orthogonal matrices from the eigendecomposition of $\mathbf{K}_{\text{space}}$ and $\mathbf{K}_{\text{time}}$).
 
-# Complexity in predictive posterior distribution (to be completed)
-<!-- The predictive posterior distribution is -->
-Let first consider prediction of a new time point $t_{*}$ at the same location $\mathbf{z}$ as the training data. The predictive mean vector is 
-$$
-\mathbf{m}_{*} = \mathbf{K}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^* (\mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} vec(\mathbf{Y}) \\ = (\mathbf{K}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^*) (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}}) (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T vec(\mathbf{Y}) \\ =
-(\mathbf{K}_{\text{space}} \mathbf{U}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^* \mathbf{U}_{\text{time}} ) (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} (\mathbf{U}_{\text{space}} \otimes \mathbf{U}_{\text{time}})^T vec(\mathbf{Y}) \\ =
-(\mathbf{K}_{\text{space}} \mathbf{U}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^* \mathbf{U}_{\text{time}}) (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} vec(\mathbf{A}) \\ 
-$$
-
-where $\mathbf{k}_{\text{time}}^*$ is the vector of covariance between the new time point $t_{*}$ and all the training time points, and $\mathbf{A} = \mathbf{U}_{\text{time}}^T \mathbf{Y} \mathbf{U}_{\text{space}}$.
-In computation, $(\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} vec(\mathbf{A})^T$ can be precomputed and stored in memory, which is a $nm \times 1$ vector. The memory complexity is $O(nm)$.
-
-
-For computing the variance, we have
-$$
-\mathbf{v}_* =  \mathbf{K}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^{**} - (\mathbf{K}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^*) (\mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} (\mathbf{K}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^*)^T
-$$
-Let's discuss the computation of the second term first efficiently. We have
-$$
-(\mathbf{K}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^*) (\mathbf{K}_{\text{space}} \otimes \mathbf{K}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} (\mathbf{K}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^*)^T \\= (\mathbf{K}_{\text{space}} \mathbf{U}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^* \mathbf{U}_{\text{time}} ) (\mathbf{\Lambda}_{\text{space}} \otimes \mathbf{\Lambda}_{\text{time}} + \sigma^2 \mathbf{I})^{-1} (\mathbf{K}_{\text{space}} \mathbf{U}_{\text{space}} \otimes \mathbf{k}_{\text{time}}^* \mathbf{U}_{\text{time}} )^T 
-$$
-
+# Complexity in predictive posterior distribution
+The predictive posterior distribution is
