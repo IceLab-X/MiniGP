@@ -3,6 +3,8 @@
 # Author: Wei W. Xing (wxing.me)
 # Email: wayne.xingle@gmail.com
 # Date: 2023-11-26
+# 
+# The idea is simple. Basically, we use a GP model to do regression, but the input is the latent variable z (to be learned) The output is the original data x. The rest of the code is almost identical to the GP regression model.
 
 
 import numpy as np

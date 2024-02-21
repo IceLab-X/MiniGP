@@ -30,7 +30,7 @@ EPS = 1e-9
 # compute the log likelihood of a normal distribution
 def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     """
-    Compute the log-likelihood of a Gaussian distribution.
+    Compute the log-likelihood of a Gaussian distribution N(y|0, cov). If you have a mean mu, you can use N(y|mu, cov) = N(y-mu|0, cov).
 
     Args:
         y (torch.Tensor): The observed values.
@@ -59,7 +59,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
         return -0.5 * (y.T @ torch.cholesky_solve(y, L) + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
     
     elif Kinv_method == 'cholesky3':
-        # fastest implementation so far
+        # fastest implementation so far for any covariance matrix
         L = torch.linalg.cholesky(cov)
         # return -0.5 * (y_use.T @ torch.cholesky_solve(y_use, L) + L.diag().log().sum() + len(x_train) * np.log(2 * np.pi))
         if y.shape[1] > 1:
@@ -76,6 +76,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
             return -0.5 * (gamma.T @ gamma + L.diag().log().sum() + len(y) * np.log(2 * np.pi))
 
     elif Kinv_method == 'direct':
+        # very slow
         K_inv = torch.inverse(cov)
         return -0.5 * (y.T @ K_inv @ y + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
     elif Kinv_method == 'torch_distribution_MN1':

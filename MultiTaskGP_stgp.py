@@ -10,7 +10,6 @@ def kronecker(A, B):
     AB = AB.view(A.size(0) * B.size(0), A.size(1) * B.size(1))
     return AB
 
-
 class stgp(nn.Module):
     def __init__(self, latlong_length_scale=4300., elevation_length_scale=30., time_length_scale=0.25,
                  noise_variance=0.1, signal_variance=1.):

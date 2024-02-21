@@ -40,10 +40,9 @@ class HOGP_simple(nn.Module):
             for i in range(len(self.mapping_vector)):
                 self.mapping_vector[i].requires_grad = False
 
-        
     def forward(self,x_train,x_test):
+        # only for prediction
         with torch.no_grad():
-            
             K_star = self.kernel_list[0](x_test[0], x_train[0])
             K_predict = [K_star] + self.K[1:]
 
@@ -69,7 +68,8 @@ class HOGP_simple(nn.Module):
         return predict_u, var_diag
     
     def log_likelihood(self, x_train,y_train):
-        
+        # for the notation, please refer to the HOGP paper.
+        # 
         # for param_name, param in self.named_parameters():
         #     print(f"{param_name}: {param}")
 
