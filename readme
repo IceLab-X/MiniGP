@@ -23,7 +23,13 @@ We do not have a pip package yet. You can install it by cloning the repository a
     - cigp_v10.py: a practical GP model for multivariate output. It is a conditional independent GP (cigp) for multivariate output. v10 is the special version that work with many of our research projects. You can find more cigp_vxx variations in the legacy folder. The cigp_vxx is deprecated and will be removed in the future.
     - cigp_withMean.py: a simple yet efficient GP model for multivariate output. It is recommended to use this model for most problem. It is recommend to normalize the output before using this model.
   
-- Demo_xxx: a demo for a specific GP model. TO BE ADDED.
+- xxxGP_demo: a demo for a specific GP model. Normally there will be a xxxGP_demo.ipynb file and a xxxGP.py file. The xxxGP_demo.ipynb file is a tutorial for the GP model. The xxxGP.py file is the implementation of the GP model. 
+- TO BE ADDED.
+  - [ ] SparseGP_demo: a demo for sparse GP model
+  - [ ] deepKernel_demo: a demo for deep kernel GP model
+  - [ ] BigDataGP_demo: a demo for GP model that can handle big data
+  - [ ] attentionGP_demo: a demo for attention GP model
+
 - Legacy: contains all the old GP models. They are deprecated and will be removed in the future.
 
 ## Contribution
