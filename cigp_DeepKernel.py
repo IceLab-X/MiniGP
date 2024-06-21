@@ -13,7 +13,7 @@ import torch.nn as nn
 import kernel as kernel
 import time as time
 
-import gp_computation_pack as gp_pack
+import GP_CommonCalculation as gp_pack
 import gp_transform as gp_transform
     
 def zeroMean(x):
