@@ -13,8 +13,7 @@ import numpy as np
 EPS = 1e-9
 
 # define a normalization module
-
-    
+# 
 # TODO: add a warpping layer. follow https://botorch.org/tutorials/bo_with_warped_gp 
 # class warp_layer(nn.Module):
 #     def __init__(self, warp_func, if_trainable =False):
