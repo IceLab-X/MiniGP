@@ -45,8 +45,8 @@ def compute_inverse_and_log_det_positive_eigen(matrix):
     # print(eigenvalues)
     positive_indices = eigenvalues > 1e-4
     removed_count = torch.sum(~positive_indices).item()
-    if removed_count > 0:
-        print(f"Removed {removed_count} small or non-positive eigenvalue(s).")
+    #if removed_count > 0:
+        #print(f"Removed {removed_count} small or non-positive eigenvalue(s).")
     eigenvalues = eigenvalues[positive_indices]
     eigenvectors = eigenvectors[:, positive_indices]
     inv_eigenvalues = torch.diag(1.0 / eigenvalues)
