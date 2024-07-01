@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 
 EPS = 1e-9
-
+Pi=3.1415926
 class LinearKernel(nn.Module):
     """
     Linear kernel module.
@@ -41,7 +41,7 @@ class LinearKernel(nn.Module):
         self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_length_scale)
         self.signal_variance = nn.Parameter(torch.tensor([initial_signal_variance]))
         self.center = nn.Parameter(torch.zeros(input_dim))
-        
+
     def forward(self, x1, x2):
         """
         Compute the covariance matrix using the linear kernel.
@@ -56,12 +56,52 @@ class LinearKernel(nn.Module):
         """
         x1 = (x1 - self.center) / self.length_scales
         x2 = (x2 - self.center) / self.length_scales
-        
+
         # x1 = x1 / (self.length_scales - self.center)
         # x2 = x2 / (self.length_scales - self.center)
-        
-        return x1 @ x2.T * self.signal_variance.abs()
 
+        return x1 @ x2.T * self.signal_variance.abs()
+class ARDKernel2(nn.Module):
+    """
+    ARD (Automatic Relevance Determination) kernel module.
+
+    Args:
+        input_dim (int): The input dimension.
+        initial_log_length_scale (float): The initial length scale value. Default is 0.
+        initial_log_signal_variance (float): The initial signal variance value. Default is 0.
+        eps (float): A small constant to prevent division by zero. Default is 1e-9.
+
+    Attributes:
+        log_length_scale (nn.Parameter): The length scales for each dimension.
+        log_signal_variance  (nn.Parameter): The signal variance.
+        eps (float): A small constant to prevent division by zero.
+
+    """
+
+    def __init__(self, input_dim, initial_log_length_scale=0.0, initial_log_signal_variance=0.0, eps=EPS):
+        super().__init__()
+        self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_log_length_scale)
+        self.signal_variance = nn.Parameter(torch.tensor([initial_log_signal_variance]))
+
+
+    def forward(self, x1, x2):
+        """
+        Compute the covariance matrix using the ARD kernel.
+
+        Args:
+            x1 (torch.Tensor): The first input tensor.
+            x2 (torch.Tensor): The second input tensor.
+
+        Returns:
+            torch.Tensor: The covariance matrix.
+
+        """
+        length_scales = torch.exp(self.length_scales)
+
+        scaled_x1 = x1 / length_scales
+        scaled_x2 = x2 / length_scales
+        sqdist = torch.cdist(scaled_x1, scaled_x2, p=2)**2
+        return self.signal_variance.exp() * torch.exp(-0.5 * sqdist)
 class ARDKernel(nn.Module):
     """
     ARD (Automatic Relevance Determination) kernel module.
@@ -287,9 +327,9 @@ class RationalQuadraticKernel(nn.Module):
 
     """
 
-    def __init__(self, length_scale=1., signal_variance=1., alpha=1.):
+    def __init__(self, length_scale=1.0, signal_variance=1.0, alpha=1.0):
         super(RationalQuadraticKernel, self).__init__()
-        self.length_scale = nn.Parameter(torch.tensor([length_scale]))
+        self.length_scale = nn.Parameter(torch.tensor([length_scale], dtype=torch.float32))
         self.signal_variance = nn.Parameter(torch.tensor([signal_variance]))
         self.alpha = nn.Parameter(torch.tensor([alpha]))
 
@@ -346,3 +386,86 @@ class MaternKernel_scalarLengthScale(nn.Module):
         return self.signal_variance.pow(2) * torch.pow(1 + torch.sqrt(3 * sqdist) / self.length_scale.pow(2), -self.nu)
 
         
+class RBFKernel(nn.Module):
+    """
+    Radial Basis Function (RBF) kernel module.
+
+    Args:
+        input_dim (int): The input dimension.
+        initial_length_scale (float): The length scale value. Default is 0.0 (log space).
+
+    Attributes:
+        length_scales (nn.Parameter): The length scales for each input dimension.
+    """
+    def __init__(self, input_dim, initial_length_scale=0.0):
+        super(RBFKernel, self).__init__()
+        self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_length_scale)
+
+    def forward(self, x1, x2):
+        """
+        Computes the RBF kernel between inputs x1 and x2.
+
+        Args:
+            x1 (Tensor): Input tensor of shape (n, d).
+            x2 (Tensor): Input tensor of shape (m, d).
+
+        Returns:
+            Tensor: The RBF kernel matrix of shape (n, m).
+        """
+        # Ensure length scales are positive
+        length_scales = torch.exp(self.length_scales)
+
+        # Scale inputs by length scales
+        scaled_x1 = x1 / length_scales
+        scaled_x2 = x2 / length_scales
+
+        # Calculate the squared Euclidean distance
+        sqdist = torch.cdist(scaled_x1, scaled_x2, p=2) ** 2
+
+        # Compute the RBF kernel
+        return torch.exp(-0.5 * sqdist)
+
+
+class PeriodicKernel(nn.Module):
+    """
+    Periodic kernel module.
+
+    Args:
+        input_dim (int): The input dimension.
+        initial_length_scale (float): The initial length scale value (log space). Default is 0.0.
+        initial_period (float): The initial period value (log space). Default is 0.0.
+
+    Attributes:
+        length_scales (nn.Parameter): The length scales for each input dimension.
+        period (nn.Parameter): The period.
+    """
+
+    def __init__(self, input_dim, initial_length_scale=0.0, initial_period=0.0):
+        super(PeriodicKernel, self).__init__()
+        self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_length_scale)
+        self.period = nn.Parameter(torch.tensor(initial_period))
+
+    def forward(self, x1, x2):
+        """
+        Computes the Periodic kernel between inputs x1 and x2.
+
+        Args:
+            x1 (Tensor): Input tensor of shape (n, d).
+            x2 (Tensor): Input tensor of shape (m, d).
+
+        Returns:
+            Tensor: The Periodic kernel matrix of shape (n, m).
+        """
+        # Ensure length scales and period are positive
+        length_scales = torch.exp(self.length_scales)
+        period = torch.exp(self.period)
+
+        # Scale inputs by length scales
+        scaled_x1 = x1 / length_scales
+        scaled_x2 = x2 / length_scales
+
+        # Calculate the pairwise Euclidean distance
+        dist = torch.cdist(scaled_x1, scaled_x2, p=2)
+
+        # Compute the periodic kernel
+        return torch.exp(-2 * (torch.sin(torch.tensor(Pi) * dist / period) ** 2) / length_scales ** 2)
