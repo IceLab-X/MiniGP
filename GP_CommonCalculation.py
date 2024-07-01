@@ -97,7 +97,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
             gamma = torch.cholesky_solve(y, L, upper = False)
             return - 0.5 * ( (gamma ** 2).sum() + log_det_K * y_dim + len(y) * y_dim * np.log(2 * np.pi) )
         else:
-            gamma = torch.cholesky_solve(y, L)
+            gamma = torch.linalg.solve_triangular(L,y,upper=False)
             return -0.5 * (gamma.T @ gamma + 2*L.diag().log().sum() + len(y) * np.log(2 * np.pi))
 
     elif Kinv_method == 'direct':
@@ -131,7 +131,8 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
         alpha = torch.cholesky_solve(y, L)
         mu = K_s.T @ alpha
         # v = torch.cholesky_solve(K_s, L)    # wrong implementation
-        v = L.inverse() @ K_s   # correct implementation
+        #v = L.inverse() @ K_s   # correct implementation
+        v= torch.linalg.solve_triangular(L,K_s,upper=False)
         cov = K_ss - v.T @ v
     elif Kinv_method == 'direct':
         K_inv = torch.inverse(Sigma)
@@ -146,16 +147,16 @@ class data_normalization:
     def __init__(self, X, Y=None, normal_y_mode=0):
         # Compute mean and standard deviation for X
         self.X_mean = X.mean(0)
-        self.X_std = (X.std(0) + 1e-6) # Avoid division by zero
+        self.X_std = (X.std(0) + EPS) # Avoid division by zero
 
         # Compute mean and standard deviation for Y if provided
         if Y is not None:
             if normal_y_mode == 0:
                 self.Y_mean = Y.mean()
-                self.Y_std = (Y.std() + 1e-6) # Avoid division by zero
+                self.Y_std = (Y.std() + EPS)
             else:
                 self.Y_mean =Y.mean(0)
-                self.Y_std = (Y.std(0) + 1e-6)
+                self.Y_std = (Y.std(0) + EPS)
 
     def normalize(self, X, Y=None):
         # Normalize X
