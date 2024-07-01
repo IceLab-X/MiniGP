@@ -2,17 +2,17 @@ import torch
 import matplotlib.pyplot as plt
 
 
-def generate(training_size=200, test_size=100, seed=None):
+def generate(training_size=200, test_size=100, seed=None,input_dim=1):
     if seed is not None:
         torch.manual_seed(seed)
 
     # Generate training data
-    xtr = torch.rand(training_size, 1)
-    ytr = ((6 * xtr - 2) ** 2) * torch.sin(12 * xtr - 4) + torch.randn(training_size, 1)
+    xtr = torch.rand(training_size, input_dim)
+    ytr = sum(((6 * xtr[:, i:i+1] - 2) ** 2) * torch.sin(12 * xtr[:, i:i+1] - 4) for i in range(input_dim)) + torch.randn(training_size, 1)
 
     # Generate test data
-    xte = torch.linspace(0, 1, test_size).view(-1, 1)
-    yte = ((6 * xte - 2) ** 2) * torch.sin(12 * xte - 4)
+    xte = torch.linspace(0, 1, test_size).view(-1, 1).repeat(1, input_dim)
+    yte = sum(((6 * xte[:, i:i+1] - 2) ** 2) * torch.sin(12 * xte[:, i:i+1] - 4) for i in range(input_dim))
 
     return xtr, ytr, xte, yte
 
