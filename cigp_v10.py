@@ -25,8 +25,6 @@ PI = 3.1415
 
 class cigp(nn.Module):
     def __init__(self, X, Y, normal_y_mode=0):
-        # normal_y_mode = 0: normalize Y by combing all dimension.
-        # normal_y_mode = 1: normalize Y by each dimension.
         super(cigp, self).__init__()
 
         #normalize X independently for each dimension
@@ -97,30 +95,29 @@ class cigp(nn.Module):
 
     def forward(self, Xte):
         n_test = Xte.size(0)
-        Xte = ( Xte - self.Xmean.expand_as(Xte) ) / self.Xstd.expand_as(Xte)
+        Xte = (Xte - self.Xmean.expand_as(Xte)) / self.Xstd.expand_as(Xte)
 
         Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(self.X.size(0)) \
             + JITTER * torch.eye(self.X.size(0))
 
         kx = self.kernel(self.X, Xte)
-        L = torch.cholesky(Sigma)
-        LinvKx,_ = torch.triangular_solve(kx, L, upper = False)
+        L = torch.linalg.cholesky(Sigma)
+        LinvKx = torch.linalg.solve_triangular(L, kx, upper=False)
 
-        # option 1
-        mean = kx.t() @ torch.cholesky_solve(self.Y, L)  # torch.linalg.cholesky()
-        
+        # Option 1
+        mean = kx.t() @ torch.cholesky_solve(self.Y, L)
+
         var_diag = self.kernel(Xte, Xte).diag().view(-1, 1) \
-            - (LinvKx**2).sum(dim = 0).view(-1, 1)
+            - (LinvKx**2).sum(dim=0).view(-1, 1)
 
-        # add the noise uncertainty
+        # Add the noise uncertainty
         var_diag = var_diag + self.log_beta.exp().pow(-1)
 
-        # de-normalized
+        # De-normalized
         mean = mean * self.Ystd.expand_as(mean) + self.Ymean.expand_as(mean)
         var_diag = var_diag.expand_as(mean) * self.Ystd**2
 
         return mean, var_diag
-
 
     def negative_log_likelihood(self):
         y_num, y_dimension = self.Y.shape
@@ -128,10 +125,8 @@ class cigp(nn.Module):
             self.X.size(0)) + JITTER * torch.eye(self.X.size(0))
 
         L = torch.linalg.cholesky(Sigma)
-        #option 1 (use this if torch supports)
-        Gamma,_ = torch.triangular_solve(self.Y, L, upper = False)
-        #option 2
-        # gamma = L.inverse() @ Y       # we can use this as an alternative because L is a lower triangular matrix.
+
+        Gamma = torch.linalg.solve_triangular(L,self.Y, upper=False)
 
         nll =  0.5 * (Gamma ** 2).sum() +  L.diag().log().sum() * y_dimension  \
             + 0.5 * y_num * torch.log(2 * torch.tensor(PI)) * y_dimension
@@ -150,7 +145,8 @@ class cigp(nn.Module):
             optimizer.step()
             # print('loss_nll:', loss.item())
             # print('iter', i, ' nll:', loss.item())
-            print('iter', i, 'nll:{:.5f}'.format(loss.item()))
+            if i % 10 == 0:
+                print('iter', i, 'nll:{:.5f}'.format(loss.item()))
 
 
     def train_bfgs(self, niteration=50, lr=0.1):
@@ -241,16 +237,16 @@ if __name__ == "__main__":
         ypred, ypred_var = model(xte)
 
     # plt.errorbar(xte, ypred.detach(), ypred_var.sqrt().squeeze().detach(),fmt='r-.' ,alpha = 0.2)
-    plt.plot(xte, ypred.detach(),'r-.')
-    plt.plot(xtr, ytr, 'b+')
-    plt.plot(xte, yte, 'k-')
+    plt.plot(xte.numpy(), ypred.detach().numpy(),'r-.')
+    plt.plot(xtr.numpy(), ytr.numpy(), 'b+')
+    plt.plot(xte.numpy(), yte.numpy(), 'k-')
     plt.show()
 
     # plt.close('all')
-    plt.plot(xtr, ytr, 'b+')
+    plt.plot(xtr.numpy(), ytr.numpy(), 'b+')
     for i in range(3):
-        plt.plot(xte, yte[:, i], label='truth', color='r')
-        plt.plot(xte, ypred[:, i], label='prediction', color='navy')
+        plt.plot(xte.numpy(), yte[:, i].numpy(), label='truth', color='r')
+        plt.plot(xte.numpy(), ypred[:, i].detach().numpy(), label='prediction', color='navy')
         plt.fill_between(xte.squeeze(-1).detach().numpy(),
                          ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
                          ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
