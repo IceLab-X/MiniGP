@@ -143,7 +143,13 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
     
     return mu, cov
 
-class data_normalization:
+# class data_normalization:
+#     def __init__(self, X, normal_mode=0):
+#         # Compute mean and standard deviation for X
+#         self.X_mean = X.mean(normal_mode)
+#         self.X_std = (X.std(normal_mode) + EPS) # Avoid division by zero
+
+class XYdata_normalization:
     def __init__(self, X, Y=None, normal_y_mode=0):
         # Compute mean and standard deviation for X
         self.X_mean = X.mean(0)
