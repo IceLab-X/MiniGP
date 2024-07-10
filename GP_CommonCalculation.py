@@ -25,8 +25,37 @@ EPS = 1e-9
 #     def inverse(self, x):
 #         return self.warp_func.inverse(x)
 
+# util functions to compute the log likelihood.
+def conjugate_gradient(A, b, x0=None, tol=1e-1, max_iter=1000):
+    if x0 is None:
+        x = torch.zeros_like(b)
+    else:
+        x = x0
+    r = b - torch.matmul(A, x)
+    p = r.clone()
+    rsold = torch.dot(r.flatten(), r.flatten())
 
-# compute the log likelihood of a normal distribution
+    for i in range(max_iter):
+        Ap = torch.matmul(A, p)
+        alpha = rsold / torch.dot(p.flatten(), Ap.flatten())
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rsnew = torch.dot(r.flatten(), r.flatten())
+
+        if torch.sqrt(rsnew) < tol:
+            break
+
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+
+        #if i % 10 == 0:  # Print diagnostics every 10 iterations
+            #print(f"Iteration {i}: Residual norm {torch.sqrt(rsnew):.6e}")
+
+    return x
+
+
+
+
 def compute_inverse_and_log_det_positive_eigen(matrix):
     """
     Perform eigen decomposition, remove non-positive eigenvalues,
@@ -53,6 +82,8 @@ def compute_inverse_and_log_det_positive_eigen(matrix):
     inverse_matrix = eigenvectors @ inv_eigenvalues @ eigenvectors.T
     log_det_K = torch.sum(torch.log(eigenvalues))
     return inverse_matrix, log_det_K
+
+# compute the log likelihood of a normal distribution
 def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     """
     Compute the log-likelihood of a Gaussian distribution N(y|0, cov). If you have a mean mu, you can use N(y|mu, cov) = N(y-mu|0, cov).
@@ -112,6 +143,11 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     elif Kinv_method == 'eigen':
         K_inv, log_det_K = compute_inverse_and_log_det_positive_eigen(cov)
         return -0.5 * (y.T @ K_inv @ y + log_det_K + len(y) * np.log(2 * np.pi))
+    elif Kinv_method == 'conjugate':
+        L= torch.linalg.cholesky(cov)
+        Sigma_inv_y = conjugate_gradient(cov,y)
+
+        return -0.5 * (torch.matmul(y.t(), Sigma_inv_y) - 0.5*len(y) * torch.log(2 * torch.tensor(torch.pi))) -L.diag().log().sum()
     else:
         raise ValueError('Kinv_method should be either direct or cholesky')
     
@@ -138,6 +174,11 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
         K_inv = torch.inverse(Sigma)
         mu = K_s.T @ K_inv @ y
         cov = K_ss - K_s.T @ K_inv @ K_s
+    elif Kinv_method == 'conjugate':
+        K_inv_y= conjugate_gradient(Sigma,y)
+        mu = K_s.T @ K_inv_y
+        K_inv_K_s = conjugate_gradient(Sigma,K_s)
+        cov = K_ss - K_s.T @ K_inv_K_s
     else:
         raise ValueError('Kinv_method should be either direct or cholesky')
     
@@ -148,6 +189,70 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
 #         # Compute mean and standard deviation for X
 #         self.X_mean = X.mean(normal_mode)
 #         self.X_std = (X.std(normal_mode) + EPS) # Avoid division by zero
+class DataNormalization(nn.Module):
+    def __init__(self, method="standard", mode=0, learnable=False, eps=1e-8):
+        super(DataNormalization, self).__init__()
+        self.method = method
+        self.mode = mode
+        self.learnable = learnable
+        self.eps = eps
+        self.params = {}
+
+        if method not in ["standard", "min_max"]:
+            raise ValueError("Method must be 'standard' or 'min_max'")
+
+    def fit(self, data, dataset_name):
+        if self.mode == 0:
+            if self.method == "standard":
+                mean_vals = torch.mean(data, dim=0, keepdim=True)
+                std_vals = torch.std(data, dim=0, keepdim=True)
+                self.params[dataset_name] = {'mean': nn.Parameter(mean_vals) if self.learnable else mean_vals,
+                                             'std': nn.Parameter(std_vals) if self.learnable else std_vals}
+            elif self.method == "min_max":
+                min_vals = torch.min(data, dim=0, keepdim=True).values
+                max_vals = torch.max(data, dim=0, keepdim=True).values
+                self.params[dataset_name] = {'min': nn.Parameter(min_vals) if self.learnable else min_vals,
+                                             'max': nn.Parameter(max_vals) if self.learnable else max_vals}
+        elif self.mode == 1:
+            if self.method == "standard":
+                mean_vals = torch.mean(data)
+                std_vals = torch.std(data)
+                self.params[dataset_name] = {'mean': nn.Parameter(mean_vals) if self.learnable else mean_vals,
+                                             'std': nn.Parameter(std_vals) if self.learnable else std_vals}
+            elif self.method == "min_max":
+                min_vals = torch.min(data)
+                max_vals = torch.max(data)
+                self.params[dataset_name] = {'min': nn.Parameter(min_vals) if self.learnable else min_vals,
+                                             'max': nn.Parameter(max_vals) if self.learnable else max_vals}
+
+    def normalize(self, data, dataset_name):
+        if dataset_name not in self.params:
+            raise ValueError(f"No parameters found for dataset '{dataset_name}'. Please fit the data first.")
+
+        if self.method == "standard":
+            mean_vals = self.params[dataset_name]['mean']
+            std_vals = self.params[dataset_name]['std']
+            return (data - mean_vals.expand_as(data)) / (std_vals.expand_as(data) + self.eps)
+        elif self.method == "min_max":
+            min_vals = self.params[dataset_name]['min']
+            max_vals = self.params[dataset_name]['max']
+            return (data - min_vals.expand_as(data)) / ((max_vals - min_vals).expand_as(data) + self.eps)
+
+    def denormalize(self, normalized_data, dataset_name):
+        if dataset_name not in self.params:
+            raise ValueError(f"No parameters found for dataset '{dataset_name}'. Please fit the data first.")
+
+        if self.method == "standard":
+            mean_vals = self.params[dataset_name]['mean']
+            std_vals = self.params[dataset_name]['std']
+            return normalized_data * (std_vals.expand_as(normalized_data) + self.eps) + mean_vals.expand_as(
+                normalized_data)
+        elif self.method == "min_max":
+            min_vals = self.params[dataset_name]['min']
+            max_vals = self.params[dataset_name]['max']
+            return normalized_data * ((max_vals - min_vals).expand_as(normalized_data) + self.eps) + min_vals.expand_as(
+                normalized_data)
+
 
 class XYdata_normalization:
     def __init__(self, X, Y=None, normal_y_mode=0):
@@ -182,7 +287,7 @@ class XYdata_normalization:
             return X_denormalized, Y_denormalized
         return X_denormalized
 
-    def denormalize_result(self, mean, var_diag=None):
+    def denormalize_y(self, mean, var_diag=None):
         # Denormalize the mean and variance of the prediction
         mean_denormalized = mean * self.Y_std.expand_as(mean) + self.Y_mean.expand_as(mean)
         if var_diag is not None:
