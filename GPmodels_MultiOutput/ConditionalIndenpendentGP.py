@@ -8,7 +8,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import kernel as kernel
+from core import kernel as kernel
 import time as time
     
 class CIGP(nn.Module):
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     # define kernel function
     kernel1 = kernel.ARDKernel(1)
     # kernel1 = kernel.MaternKernel(1)   
-    kernel1 = kernel.LinearKernel(1,-1.0,1.)   
+    kernel1 = kernel.LinearKernel(1, -1.0, 1.)
     kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.MaternKernel(1))
     
     GPmodel = CIGP(kernel=kernel1, noise_variance=1.0)

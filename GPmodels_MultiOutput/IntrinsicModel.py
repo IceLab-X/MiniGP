@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from scipy.io import loadmat
-from kernel import SquaredExponentialKernel
+from core.kernel import SquaredExponentialKernel
 import matplotlib.pyplot as plt
 JITTER = 1e-1
 

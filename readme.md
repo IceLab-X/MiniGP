@@ -7,12 +7,11 @@ Despite that there are many successful GP libraries, such as GPy, GPflow, and Py
 We do not have a pip package yet. You can install it by cloning the repository and rune the code for your own purpose. At this stage we think it is better to keep it simple and customizable. It servers as rather demo code than a library, with some useful functions to make computation easier.
 
 ## Structure
-- Key components (in the root folder)
+- core (folder): contains all the core functions for GP. It is the backbone of the library.
   - kernel.py: contains all the kernel functions
-  - GP_CommonCalculation.py: contains all the common computation in GP
-  - gp_transform.py: contains all the transformation functions for GP. NOT IMPLEMENTED YET.
+  - GP_CommonCalculation.py: contains all the common computation in GP, normalization functions and input warping functions.
 
-- GPTutorial (folder): our signature tutorial for GP. It is a step-by-step tutorial to build a GP model from scratch. It is a great way to understand the basic of GP. Most of the tutorial is self-contained and can be used as a standalone code.
+- GP_Tutorial (folder): our signature tutorial for GP. It is a step-by-step tutorial to build a GP model from scratch and related mathematical explanation. It is a great way to understand the basic of GP. Most of the tutorial is self-contained and can be used as a standalone code.
   - GPTutorial_basicGP: a basic GP model. 
   - GPTutorial_basicGP_chinese: a basic GP model in Chinese.
   - GPTutorial_hogp_chinese: high-oreder GP [(HOGP)](https://proceedings.mlr.press/v89/zhe19a.html) in Chinese.
@@ -21,12 +20,16 @@ We do not have a pip package yet. You can install it by cloning the repository a
 
 
 <!-- - Self-contained GP models.
-  Several GP models that are self-contained and practical to use (we use them in our many of our research projects).  -->
+  Several GP models that are self-contained and practical to use (we use them in many of our research projects).  -->
+  
+  - GPmodels_Advance(folder): Advance GP models, including GP with GPU acceleration, and automatic GP.
+    - GP&GPU: a GP model with GPU acceleration.
+    - autoGP: a GP model with automatic kernel selection, data standardization, input warping and training.
+   
   - GPmodels_Classic (folder): basic GP model and its variation, such as DeepKernel GP, InputWarp GP . It demonstrates how to build a GP model with the GP_CommonCalculation.
     - simpleGP, a basic GP model. It demonstrates how to build a GP model with the GP_CommonCalculation.
     - deepKernelGP, a GP model with deep kernel.[(DKL)](https://arxiv.org/abs/1511.02222) 
     - inputWarpGP, a GP model with input warping.[(IW)](https://arxiv.org/abs/1509.01168)
-    - transformGP, a GP model with transformation. Contains all the transformation functions for GP. NOT IMPLEMENTED YET.
   - GPmodels_LatentVariable: provides tools for implementing Gaussian Process models with latent variables.
     - latentVariableGP, a GP model with latent variable. 
   - GPmodels_MultiOutput: provides tools for implementing Gaussian Process models with multiple outputs.
@@ -48,9 +51,7 @@ We do not have a pip package yet. You can install it by cloning the repository a
   -
   - 
   - 
-  - 
-
-- Legacy: contains all the old GP models. They are deprecated and will be removed in the future.
+  -
 
 ## Contribution
 We welcome any contribution to this project. Please feel free to open an issue or pull request. We are happy to discuss any ideas with you. 
@@ -65,9 +66,6 @@ We welcome any contribution to this project. Please feel free to open an issue o
 - [ ] redo previous GP models using the new architecture
 - [ ] add GPU enabled GP
 - [ ] Need HOGP -->
-
-
-
 
 
 

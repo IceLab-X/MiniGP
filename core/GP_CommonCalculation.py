@@ -12,18 +12,6 @@ import numpy as np
 
 EPS = 1e-9
 
-# define a normalization module
-# 
-# TODO: add a warpping layer. follow https://botorch.org/tutorials/bo_with_warped_gp 
-# class warp_layer(nn.Module):
-#     def __init__(self, warp_func, if_trainable =False):
-#         super().__init__()
-#         self.warp_func = warp_func
-#         self.warp_func.requires_grad = if_trainable
-#     def forward(self, x):
-#         return self.warp_func(x)
-#     def inverse(self, x):
-#         return self.warp_func.inverse(x)
 
 # util functions to compute the log likelihood.
 def conjugate_gradient(A, b, x0=None, tol=1e-1, max_iter=1000):
@@ -252,8 +240,154 @@ class DataNormalization(nn.Module):
             max_vals = self.params[dataset_name]['max']
             return normalized_data * ((max_vals - min_vals).expand_as(normalized_data) + self.eps) + min_vals.expand_as(
                 normalized_data)
+    def denormalize_cov(self, normalized_cov, dataset_name):
+        if dataset_name not in self.params:
+            raise ValueError(f"No parameters found for dataset '{dataset_name}'. Please fit the data first.")
+        if self.method == "standard":
+            std_vals = self.params[dataset_name]['std']
+            return normalized_cov * (std_vals.T @ std_vals + self.eps)
+        elif self.method == "min_max":
+            min_vals = self.params[dataset_name]['min']
+            max_vals = self.params[dataset_name]['max']
+            return normalized_cov * ((max_vals - min_vals).T @ (max_vals - min_vals) + self.eps)
 
 
+class Warp(nn.Module):
+    """
+    A PyTorch module for applying different warping transformations to input data.
+
+    Supported transformations:
+    - Logarithmic (log)
+    - Hyperbolic tangent (tanh)
+    - Kumaraswamy CDF (kumar)
+
+    Attributes:
+    method (str): The transformation method to use ('log', 'tanh', 'kumar').
+    a (nn.Parameter): Learnable parameter used in 'tanh' and 'kumar' transformations.
+    b (nn.Parameter): Learnable parameter used in 'tanh' and 'kumar' transformations.
+    c (nn.Parameter): Learnable parameter used in 'tanh' transformation.
+
+    Methods:
+    transform(y): Applies the chosen transformation to the input tensor y.
+    grad(y): Computes the gradient of the chosen transformation with respect to y.
+    tanh_inv(mean_transformed, tol=1e-5, max_iter=1000): Computes the inverse of the 'tanh' transformation.
+    kumar_inv(mean_transformed, tol=1e-5, max_iter=1000): Computes the inverse of the 'Kum' transformation.
+    back_transform(mean_transformed, var_diag_transformed): Applies the inverse transformation to mean and variance.
+    """
+
+    def __init__(self, method="log", initial_a=0.0, initial_b=0.0):
+        """
+        Initializes the Warp module with the specified transformation method.
+
+        Args:
+        method (str): The transformation method to use ('log', 'tanh', 'Kum').
+        """
+        super(Warp, self).__init__()
+        self.method = method
+        self.a = nn.Parameter(torch.tensor(initial_a))
+        self.b = nn.Parameter(torch.tensor(initial_b))
+
+
+    def transform(self, y):
+        """
+        Applies the chosen transformation to the input tensor y.
+
+        Args:
+        y (torch.Tensor): The input tensor.
+
+        Returns:
+        torch.Tensor: The transformed tensor.
+        """
+        if self.method == 'log':
+            return torch.log(y + 1)  # Add 1 to avoid log(0) issues
+        elif self.method == 'tanh':
+            c = nn.Parameter(torch.zeros(1))
+            f_y = self.a.exp() * torch.tanh(self.b.exp() * y + c) + y
+            return f_y
+        elif self.method == 'kumar':
+            return 1 - (1 - y ** self.a.exp()) ** self.b.exp()
+
+    def grad(self, y):
+        """
+        Computes the gradient of the chosen transformation with respect to y.
+
+        Args:
+        y (torch.Tensor): The input tensor.
+
+        Returns:
+        torch.Tensor: The gradient tensor.
+        """
+        if self.method == 'tanh':
+            df_y = self.b.exp() * (1 - torch.tanh(self.b.exp() * y + self.c) ** 2) + 1
+            return df_y
+        elif self.method == 'kumar':
+            a = self.a.exp()
+            b = self.b.exp()
+            df_y = a * b * (y ** (a - 1)) * ((1 - y ** a) ** (b - 1))
+            return df_y
+        else:
+            raise NotImplementedError(f"Gradient not implemented for method {self.method}")
+
+    def inv_transform(self, mean_transformed, tol=1e-5, max_iter=1000):
+        """
+        Computes the inverse of the transformation using the Newton-Raphson method for 'tanh' and analytically for 'kumar'.
+
+        Args:
+        mean_transformed (torch.Tensor): The transformed mean tensor.
+        tol (float): Tolerance for convergence.
+        max_iter (int): Maximum number of iterations.
+
+        Returns:
+        torch.Tensor: The inverse-transformed mean tensor.
+        """
+        if self.method == 'tanh':
+            initial_guess = mean_transformed.clone()  # Ensure we don't modify the input tensor directly
+            for _ in range(max_iter):
+                f_y = self.transform(initial_guess)
+                df_y = self.grad(initial_guess)
+                next_guess = initial_guess - (f_y - mean_transformed) / df_y
+
+                if torch.abs(f_y - mean_transformed).max() < tol:
+                    break
+                initial_guess = next_guess
+            mean = initial_guess
+            return mean
+        elif self.method == 'kumar':
+            a = self.a.exp()
+            b = self.b.exp()
+            return (1 - (1 - mean_transformed) ** (1 / b)) ** (1 / a)
+
+    def back_transform(self, mean_transformed, var_diag_transformed, tol=1e-5, max_iter=1000):
+        """
+        Applies the inverse transformation to mean and variance.
+
+        Args:
+        mean_transformed (torch.Tensor): The transformed mean tensor.
+        var_diag_transformed (torch.Tensor): The transformed variance tensor.
+        tol (float): Tolerance for convergence.
+        max_iter (int): Maximum number of iterations.
+
+        Returns:
+        tuple: The inverse-transformed mean and variance tensors.
+        """
+        if self.method == 'log':
+            mean = torch.exp(mean_transformed + 0.5 * var_diag_transformed) - 1
+            var_diag = (torch.exp(var_diag_transformed) - 1) * torch.exp(2 * mean_transformed + var_diag_transformed)
+            return mean, var_diag
+
+        elif self.method == 'tanh':
+            median = self.inv_transform(mean_transformed)
+            var_diag = self.inv_transform(mean_transformed + 2 * torch.sqrt(var_diag_transformed)) - self.inv_transform(
+                mean_transformed - 2 * torch.sqrt(var_diag_transformed))
+            var_diag = var_diag ** 2 / 4  # As we used 2σ, we need to divide by 4
+            return median, var_diag
+
+        elif self.method == 'kumar':
+            median = self.inv_transform(mean_transformed)
+            var_diag = self.inv_transform(mean_transformed + 2 * torch.sqrt(var_diag_transformed)) - self.inv_transform(
+                mean_transformed - 2 * torch.sqrt(var_diag_transformed))
+            var_diag = var_diag ** 2 / 4
+            return median, var_diag
 class XYdata_normalization:
     def __init__(self, X, Y=None, normal_y_mode=0):
         # Compute mean and standard deviation for X

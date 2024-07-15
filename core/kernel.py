@@ -61,7 +61,7 @@ class LinearKernel(nn.Module):
         # x2 = x2 / (self.length_scales - self.center)
 
         return x1 @ x2.T * self.signal_variance.abs()
-class ARDKernel2(nn.Module):
+class ARDKernel(nn.Module):
     """
     ARD (Automatic Relevance Determination) kernel module.
 
@@ -69,7 +69,7 @@ class ARDKernel2(nn.Module):
         input_dim (int): The input dimension.
         initial_log_length_scale (float): The initial length scale value. Default is 0.
         initial_log_signal_variance (float): The initial signal variance value. Default is 0.
-        eps (float): A small constant to prevent division by zero. Default is 1e-9.
+        input_dtype (torch.dtype): The data type of the input. Default is torch.float64.
 
     Attributes:
         log_length_scale (nn.Parameter): The length scales for each dimension.
@@ -78,9 +78,10 @@ class ARDKernel2(nn.Module):
 
     """
 
-    def __init__(self, input_dim, initial_log_length_scale=0.0, initial_log_signal_variance=0.0, eps=EPS):
+    def __init__(self, input_dim, initial_log_length_scale=0.0, initial_log_signal_variance=0.0, input_dtype=torch.float64):
         super().__init__()
-        self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_log_length_scale)
+
+        self.length_scales = nn.Parameter(torch.ones(input_dim, dtype=input_dtype) * initial_log_length_scale)
         self.signal_variance = nn.Parameter(torch.tensor([initial_log_signal_variance]))
 
 
@@ -96,53 +97,14 @@ class ARDKernel2(nn.Module):
             torch.Tensor: The covariance matrix.
 
         """
-        length_scales = torch.exp(self.length_scales)
-
+        device = x1.device
+        length_scales = torch.exp(self.length_scales).to(device)
+        signal_variance=self.signal_variance.exp().to(device)
         scaled_x1 = x1 / length_scales
         scaled_x2 = x2 / length_scales
         sqdist = torch.cdist(scaled_x1, scaled_x2, p=2)**2
-        return self.signal_variance.exp() * torch.exp(-0.5 * sqdist)
-class ARDKernel(nn.Module):
-    """
-    ARD (Automatic Relevance Determination) kernel module.
+        return signal_variance.exp() * torch.exp(-0.5 * sqdist)
 
-    Args:
-        input_dim (int): The input dimension.
-        initial_length_scale (float): The initial length scale value. Default is 1.0.
-        initial_signal_variance (float): The initial signal variance value. Default is 1.0.
-        eps (float): A small constant to prevent division by zero. Default is 1e-9.
-
-    Attributes:
-        length_scales (nn.Parameter): The length scales for each dimension.
-        signal_variance (nn.Parameter): The signal variance.
-        eps (float): A small constant to prevent division by zero.
-
-    """
-
-    def __init__(self, input_dim, initial_length_scale=1.0, initial_signal_variance=1.0, eps=EPS):
-        super().__init__()
-        self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_length_scale)
-        self.signal_variance = nn.Parameter(torch.tensor([initial_signal_variance]))
-        self.eps = eps
-
-    def forward(self, x1, x2):
-        """
-        Compute the covariance matrix using the ARD kernel.
-
-        Args:
-            x1 (torch.Tensor): The first input tensor.
-            x2 (torch.Tensor): The second input tensor.
-
-        Returns:
-            torch.Tensor: The covariance matrix.
-
-        """
-        length_scales = torch.abs(self.length_scales) + self.eps
-
-        scaled_x1 = x1 / length_scales
-        scaled_x2 = x2 / length_scales
-        sqdist = torch.cdist(scaled_x1, scaled_x2, p=2)**2
-        return self.signal_variance.abs() * torch.exp(-0.5 * sqdist)
 
     
 # Matern kernel with independent length scales

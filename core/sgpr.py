@@ -7,7 +7,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 from matplotlib import pyplot as plt
-from data_process import data_process
+from model_FAQ.non_positive_definite_fixer import remove_similar_data
+import core.GP_CommonCalculation as GP
+from data_sample import generate_example_data as data
+from core.kernel import ARDKernel
+from core.cigp_v10 import cigp
 print(torch.__version__)
 # I use torch (1.11.0) for this work. lower version may not work.
 
@@ -19,34 +23,26 @@ EPS = 1e-10
 PI = 3.1415
 
 
-
 class vsgp(nn.Module):
     def __init__(self, X, Y, num_inducing, normal_y_mode=0):
         super(vsgp, self).__init__()
 
-        self.data = data_process(X, Y, normal_y_mode)
+        self.data = GP.data_normalization(X, Y, normal_y_mode)
         self.X, self.Y = self.data.normalize(X, Y)
-        self.X, self.Y = self.data.remove(self.X, self.Y)
+        # normalize X independently for each dimension
+        #self.X, self.Y = X, Y
+        self.X, self.Y = remove_similar_data(self.X, self.Y)
 
         # GP hyperparameters
         self.log_beta = nn.Parameter(torch.ones(1) * -4)  # Initial noise level
-        self.log_length_scale = nn.Parameter(torch.zeros(X.size(1)))  # ARD length scale
-        self.log_scale = nn.Parameter(torch.zeros(1))  # Kernel scale
+
 
         # Inducing points
-        subset_indices = torch.randperm(self.X.size(0))[:num_inducing]
-        self.xm = nn.Parameter(self.X[subset_indices])  # Inducing points
-
-    def kernel(self, X1, X2):
-        """Common RBF kernel."""
-        X1 = X1 / self.log_length_scale.exp()
-        X2 = X2 / self.log_length_scale.exp()
-        X1_norm2 = torch.sum(X1 * X1, dim=1).view(-1, 1)
-        X2_norm2 = torch.sum(X2 * X2, dim=1).view(-1, 1)
-
-        K = -2.0 * X1 @ X2.t() + X1_norm2.expand(X1.size(0), X2.size(0)) + X2_norm2.t().expand(X1.size(0), X2.size(0))
-        K = self.log_scale.exp() * torch.exp(-0.5 * K)
-        return K
+        #subset_indices = torch.randperm(self.X.size(0))[:num_inducing]
+        #self.xm = nn.Parameter(self.X[subset_indices])  # Inducing points
+        input_dim=self.X.size(1)
+        self.kernel = ARDKernel(input_dim)
+        self.xm = nn.Parameter(torch.rand((num_inducing, input_dim)))  # Inducing points
 
     def negative_lower_bound(self):
         """Negative lower bound as the loss function to minimize."""
@@ -90,6 +86,7 @@ class vsgp(nn.Module):
     def forward(self, Xte):
         """Compute mean and variance for posterior distribution."""
         Xte = self.data.normalize(Xte)
+
         K_tt = self.kernel(Xte, Xte)
         K_tm = self.kernel(Xte, self.xm)
         K_mt = K_tm.t()
@@ -99,6 +96,8 @@ class vsgp(nn.Module):
                K_tm @ K_mm_inv @ A_m @ K_mm_inv @ K_mt)
         var_diag = var.diag().view(-1, 1)
         mean, var_diag = self.data.denormalize_result(mean, var_diag)
+        # de-normalized
+
         return mean, var_diag
 
     def train_adam(self, niteration=10, lr=0.1):
@@ -125,25 +124,74 @@ class vsgp(nn.Module):
 
         optimizer.step(closure)
 
-# Test Script
-if __name__ == "__main__":
-    print('testing')
-    print(torch.__version__)
 
-    # single output test 1
-    xte = torch.linspace(0, 6, 100).view(-1, 1)
-    yte = torch.sin(xte) + 10
 
-    xtr = torch.rand(16, 1) * 6
-    ytr = torch.sin(xtr) + torch.randn(16, 1) * 0.5 + 10
+def r2_score(y_true, y_pred):
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - (ss_res / ss_tot)
+def mse_cal(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2)
 
-    model = vsgp(xtr, ytr,10)
-    #model.train_adam(200, lr=0.1)
-    model.train_lbfgs(20, lr=0.1)
+xtr, ytr, xte, yte = data.generate(800, 100, seed=42, input_dim=3)
+input_dim = xtr.shape[1]
+#model2 = cigp(xtr, ytr)
 
-    with torch.no_grad():
-        ypred, ypred_var = model.forward(xte)
+# Initialize lists to store R^2 values
+r2_values_model = []
+r2_values_model2 = []
 
-    plt.errorbar(xte, ypred.reshape(-1).detach(), ypred_var.sqrt().squeeze().detach(), fmt='r-.' ,alpha = 0.2)
-    plt.plot(xtr, ytr, 'b+')
-    plt.show()
+
+# Function to train the model and track MSE
+def train_model_with_mse_tracking(model, xte, yte, epochs, lr, mse):
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    best_mse = float('inf')
+    best_state = None
+
+    for epoch in range(epochs):
+        model.train()
+        optimizer.zero_grad()
+        loss = model.negative_lower_bound()
+        loss.backward()
+        optimizer.step()
+
+        # Calculate MSE with no gradient calculation
+        with torch.no_grad():
+            y_pred, _ = model.forward(xte)
+            mse_value = mse_cal(yte.numpy(), y_pred.numpy())
+            mse.append(mse_value)
+
+            if mse_value < best_mse:
+                best_mse = mse_value
+                best_state = model.state_dict()  # Save the best model state
+            elif mse_value > best_mse and mse_value < 1:
+                print(f"Stopping at epoch {epoch}/{epochs} with best MSE: {best_mse}")
+                model.load_state_dict(best_state)  # Restore the best model state
+                break
+
+        if epoch % 1 == 0:
+            print(f"Epoch {epoch}/{epochs}, Loss: {loss.item()}, MSE: {mse[-1]}")
+
+# Initialize MSE list
+mse = []
+
+# Train the model and track MSE
+model = vsgp(xtr, ytr, 80)
+model2= cigp(xtr, ytr)
+train_model_with_mse_tracking(model, xte, yte, 400, 0.01, mse)
+model2.train_adam(400, 0.01)
+with torch.no_grad():
+
+    y_pred2, _ = model2.forward(xte)
+    mse2= mse_cal(yte.numpy(), y_pred2.numpy())
+    print(f"Final MSE for model 2: {mse2}")
+# Plotting the MSE values
+plt.figure(figsize=(10, 6))
+plt.plot(range(len(mse)), mse, label='Model 1 (vsgp)')
+plt.xlabel('Training Epochs')
+plt.ylabel('MSE')
+plt.title('MSE Score vs. Training Epochs')
+plt.legend()
+plt.show()
+
+# Plot predictions with error bars

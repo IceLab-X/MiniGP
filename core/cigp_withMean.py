@@ -7,15 +7,13 @@
 # Email: wayne.xingle@gmail.com
 # Date: 2023-11-26
 
-import numpy as np
 import torch
 import torch.nn as nn
-import kernel as kernel
 import time as time
 
-import GP_CommonCalculation as gp_pack
-import gp_transform as gp_transform
-    
+import core.GP_CommonCalculation as GP_pack, kernel as kernel
+
+
 def zeroMean(x):
     return torch.zeros(x.shape[0], 3)
 
