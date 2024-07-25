@@ -20,6 +20,32 @@ import torch.nn as nn
 
 EPS = 1e-9
 Pi=3.1415926
+torch.set_default_dtype(torch.float64)
+class NeuralKernel(nn.Module):
+    def __init__(self, input_dim):
+        super(NeuralKernel, self).__init__()
+
+        # 定义核函数
+        self.kernels = nn.ModuleDict({
+            'RationalQuadratic': RationalQuadraticKernel(input_dim),
+            'linear': LinearKernel(input_dim),
+            'periodic': PeriodicKernel(input_dim),
+            'ARD':ARDKernel(input_dim)
+        })
+        self.softplus= nn.Softplus()
+        # 定义核函数的可学习权重
+        self.weights = nn.ParameterDict({
+            'RationalQuadratic': nn.Parameter(torch.tensor(1.0)),
+            'linear': nn.Parameter(torch.tensor(1.0)),
+            'periodic': nn.Parameter(torch.tensor(1.0)),
+            'ARD':nn.Parameter(torch.tensor(1.0))
+        })
+
+    def forward(self, x1, x2):
+        # 计算每个核函数的输出并加权相加
+        K_sum = sum(self.softplus(self.weights[name]) * kernel(x1, x2)
+                    for name, kernel in self.kernels.items())
+        return K_sum
 class LinearKernel(nn.Module):
     """
     Linear kernel module.
@@ -393,23 +419,25 @@ class RBFKernel(nn.Module):
         return torch.exp(-0.5 * sqdist)
 
 
+
+
 class PeriodicKernel(nn.Module):
     """
-    Periodic kernel module.
+        Periodic kernel module.
 
-    Args:
-        input_dim (int): The input dimension.
-        initial_length_scale (float): The initial length scale value (log space). Default is 0.0.
-        initial_period (float): The initial period value (log space). Default is 0.0.
+        Args:
+            input_dim (int): The input dimension.
+            initial_length_scale (float): The initial length scale value (log space). Default is 0.0.
+            initial_period (float): The initial period value (log space). Default is 0.0.
 
-    Attributes:
-        length_scales (nn.Parameter): The length scales for each input dimension.
-        period (nn.Parameter): The period.
-    """
+        Attributes:
+            length_scales (nn.Parameter): The length scales for each input dimension.
+            period (nn.Parameter): The period.
+        """
 
-    def __init__(self, input_dim, initial_length_scale=0.0, initial_period=0.0):
+    def __init__(self, input_dim, initial_length_scale=1.0, initial_period=2.0):
         super(PeriodicKernel, self).__init__()
-        self.length_scales = nn.Parameter(torch.ones(input_dim) * initial_length_scale)
+        self.length_scales = nn.Parameter(torch.ones(1) * initial_length_scale)
         self.period = nn.Parameter(torch.tensor(initial_period))
 
     def forward(self, x1, x2):
@@ -424,15 +452,57 @@ class PeriodicKernel(nn.Module):
             Tensor: The Periodic kernel matrix of shape (n, m).
         """
         # Ensure length scales and period are positive
-        length_scales = torch.exp(self.length_scales)
-        period = torch.exp(self.period)
+        length_scales = torch.abs(self.length_scales)+EPS
+        period = torch.abs(self.period)+EPS
 
         # Scale inputs by length scales
-        scaled_x1 = x1 / length_scales
-        scaled_x2 = x2 / length_scales
+        scaled_x1 = torch.tensor(Pi)*x1/period
+        scaled_x2 = torch.tensor(Pi)*x2/period
 
         # Calculate the pairwise Euclidean distance
         dist = torch.cdist(scaled_x1, scaled_x2, p=2)
 
         # Compute the periodic kernel
-        return torch.exp(-2 * (torch.sin(torch.tensor(Pi) * dist / period) ** 2) / length_scales ** 2)
+        return torch.exp(-2 * (torch.sin(dist).pow(2)) / length_scales**2)
+# class PeriodicKernel(nn.Module):
+#     """
+#     Periodic kernel module.
+#
+#     Args:
+#         input_dim (int): The input dimension.
+#         initial_length_scale (float): The initial length scale value (log space). Default is 0.0.
+#         initial_period (float): The initial period value (log space). Default is 0.0.
+#
+#     Attributes:
+#         length_scales (nn.Parameter): The length scales for each input dimension.
+#         period (nn.Parameter): The period.
+#     """
+#
+#     def __init__(self, input_dim, initial_length_scale=1.0, initial_period=1.0):
+#         super(PeriodicKernel, self).__init__()
+#         self.length_scales = nn.Parameter(torch.ones() * initial_length_scale)
+#         self.period = nn.Parameter(torch.tensor(initial_period))
+#
+#     def forward(self, x1, x2):
+#         """
+#         Computes the Periodic kernel between inputs x1 and x2.
+#
+#         Args:
+#             x1 (Tensor): Input tensor of shape (n, d).
+#             x2 (Tensor): Input tensor of shape (m, d).
+#
+#         Returns:
+#             Tensor: The Periodic kernel matrix of shape (n, m).
+#         """
+#         # Ensure length scales and period are positive
+#         length_scales = torch.exp(self.length_scales) + EPS
+#         period = torch.exp(self.period) + EPS
+#
+#         # Calculate the pairwise Euclidean distance
+#         dist = torch.cdist(x1, x2, p=2)
+#
+#         # Compute the periodic kernel
+#         scaled_dist = torch.tensor(Pi) * dist / period
+#         periodic_kernel = torch.exp(-2 * (torch.sin(scaled_dist).pow(2)) / (length_scales ** 2))
+#         print(1)
+#         return periodic_kernel
