@@ -7,17 +7,17 @@ Despite that there are many successful GP libraries, such as GPy, GPflow, and Py
 We do not have a pip package yet. You can install it by cloning the repository and rune the code for your own purpose. At this stage we think it is better to keep it simple and customizable. It servers as rather demo code than a library, with some useful functions to make computation easier.
 
 ## Structure
-- **core (folder):** Contains all the core functions for GP. It is the backbone of the library. Additionally, there are some Python scripts for GP models that are easy and quick to use for research and experiments.
+- **core:** Contains all the core functions for GP. It is the backbone of the library. Additionally, there are some Python scripts for GP models that are easy and quick to use for research and experiments. More details can be found in the README file in the core folder.
 
 <!-- - Self-contained GP models and signiture GPTutorials for educational purposes.
   Several GP models that are self-contained and practical to use (we use them in many of our research projects).  -->
   
-  - **GPmodels_Advance(folder):** Advance GP models, including GP with GPU acceleration, and automatic GP.
+  - **GPmodels_Advance:** Advance GP models, including GP with GPU acceleration, and automatic GP.
     - GP&GPU: a GP model with GPU acceleration.
     - autoGP: a GP model with automatic kernel selection, data standardization, input warping and training.
     - GPTutorial_DynamicModel: GP dynamic model in Chinese. [Original paper](https://www.dgp.toronto.edu/~jmwang/gpdm/nips05final.pdf) 
     
-  - **GPmodels_Classic (folder):** basic GP model and its variation, such as DeepKernel GP, InputWarp GP . It demonstrates how to build a GP model with the GP_CommonCalculation.
+  - **GPmodels_Classic:** basic GP model and its variation, such as DeepKernel GP, InputWarp GP . It demonstrates how to build a GP model with the GP_CommonCalculation.
     - 01_simpleGP, a basic GP model. It demonstrates how to build a GP model with the GP_CommonCalculation.
     - 02_deepKernelGP, a GP model with deep kernel. [Original paper](https://arxiv.org/abs/1511.02222) 
     - 03_logTransformWarpGP, a GP model with log transform on the target values, this can improve the model performance when the noise does not follow Gaussian distribution.
@@ -30,7 +30,7 @@ We do not have a pip package yet. You can install it by cloning the repository a
     - 02_svgp, A demo for implementing mini-batch gradient descent on SVGP allows training a GP with 10k inputs in 2 seconds.
     - GPTutorial_sgpr: A detailed tutorial for Sparse Gaussian Process with variational learning inducing points. [Original paper](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf)
     - GPTutorial_svgp, A detailed tutorial for Stochastic Variational Interference GP model that can allow mini-batch training. [Original paper](https://arxiv.org/abs/1411.2005)
-- **Model_FAQ:** Frequently asked questions for GP model. It contains some techniques to solve NAN problem in GP model.
+- **Model_FAQ:** Frequently asked questions for GP model. It contains some techniques to solve NAN problem in GP model. More details can be found in the README file in the Model_FAQ folder.
 
 
 
