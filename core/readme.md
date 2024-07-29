@@ -2,7 +2,7 @@
 Welcome to the core folder of the Mini-GP repository. This folder contains the fundamental components and algorithms essential for the Mini-GP project. This README provides an overview of the folder's structure, key files, and instructions on how to get started.
   - kernel.py: contains all the kernel functions
   - GP_CommonCalculation.py: contains all the common computation in GP, normalization functions and input warping functions. This essential to help you build your own GP model satisfying your needs. 
-
+  - non_positive_definite_fixer.py: a set of tools to use when your kernel is non-positive definite, or you encounter NAN problem.
 ## Python scripts for the core models
 - autoGP.py: A GP model that automatically standardize the data and choose the kernel for you. It is a simple GP model that is easy to use for general users.
 - cigp_DeepKernel.py: A GP model that uses a deep kernel to model the data. It is a more complex GP model that is suitable for users who want to model complex data. [Original paper](https://arxiv.org/abs/1511.02222)
