@@ -1,7 +1,7 @@
 #author: Zidong Chen
 #date: 2024-06-22
 #version: v1.0
-#description: This script provides functions to fix non-positive definite matrices.
+#description: This script provides functions to fix non-positive definite matrices. Detailed demonstration can be found in the non_positive_definite_fixer_implement.ipynb in model_FAQ file.
 import torch
 import numpy as np
 
