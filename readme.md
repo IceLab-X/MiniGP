@@ -14,9 +14,9 @@ We do not have a pip package yet. You can install it by cloning the repository a
 - GP_Tutorial (folder): our signature tutorial for GP. It is a step-by-step tutorial to build a GP model from scratch and related mathematical explanation. It is a great way to understand the basic of GP. Most of the tutorial is self-contained and can be used as a standalone code.
   - GPTutorial_basicGP: a basic GP model. 
   - GPTutorial_basicGP_chinese: a basic GP model in Chinese.
-  - GPTutorial_hogp_chinese: high-oreder GP in Chinese. Reference:[(HOGP)](https://proceedings.mlr.press/v89/zhe19a.html) 
-  - GPTutorial_DynamicModel: GP dynamic model in Chinese. Reference: [(GPDM)](https://www.dgp.toronto.edu/~jmwang/gpdm/nips05final.pdf) 
-  - GPTutorial_sparseGP: sparse GP model. Reference: [VSGP](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf)
+  - GPTutorial_hogp_chinese: high-oreder GP in Chinese. [Original paper](https://proceedings.mlr.press/v89/zhe19a.html) 
+  - GPTutorial_DynamicModel: GP dynamic model in Chinese. [Original paper](https://www.dgp.toronto.edu/~jmwang/gpdm/nips05final.pdf) 
+  - GPTutorial_sparseGP: sparse GP model. [Original paper](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf)
 
 
 <!-- - Self-contained GP models.

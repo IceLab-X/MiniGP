@@ -172,12 +172,35 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
     
     return mu, cov
 
-# class data_normalization:
-#     def __init__(self, X, normal_mode=0):
-#         # Compute mean and standard deviation for X
-#         self.X_mean = X.mean(normal_mode)
-#         self.X_std = (X.std(normal_mode) + EPS) # Avoid division by zero
 class DataNormalization(nn.Module):
+    """
+    A class used to perform data normalization for different datasets using standardization or min-max scaling.
+
+    Parameters
+    ----------
+    method : str, optional
+        The normalization method to use. Can be 'standard' for standardization or 'min_max' for min-max scaling (default is 'standard').
+    mode : int, optional
+        The mode of normalization. If 0, normalization is performed feature-wise. If 1, normalization is performed on the entire dataset (default is 0).
+    learnable : bool, optional
+        If True, the normalization parameters (mean, std, min, max) will be learnable parameters (default is False).
+    eps : float, optional
+        A small value to avoid division by zero (default is 1e-8).
+
+    Methods
+    -------
+    fit(data, dataset_name)
+        Computes and stores the normalization parameters for the given dataset.
+
+    normalize(data, dataset_name)
+        Normalizes the given data using the stored normalization parameters for the specified dataset.
+
+    denormalize(normalized_data, dataset_name)
+        Denormalizes the given data using the stored normalization parameters for the specified dataset.
+
+    denormalize_cov(normalized_cov, dataset_name)
+        Denormalizes the covariance matrix using the stored normalization parameters for the specified dataset.
+    """
     def __init__(self, method="standard", mode=0, learnable=False, eps=1e-8):
         super(DataNormalization, self).__init__()
         self.method = method
@@ -253,33 +276,71 @@ class DataNormalization(nn.Module):
 
 
 class Warp(nn.Module):
-    def __init__(self, method="log", initial_a=1.0, initial_b=1.0, initial_c=0.0,warp_level=0.25):
+    """
+        A class to apply and invert transformations using either the 'log' or 'kumar' method.
+
+        Attributes:
+            method (str): The method to use for transformations ('log' or 'kumar').
+            a (torch.nn.Parameter): Parameter 'a' for the 'kumar' transformation, initialized as a torch tensor.
+            b (torch.nn.Parameter): Parameter 'b' for the 'kumar' transformation, initialized as a torch tensor.
+            a_lower_bound (float): Lower bound for parameter 'a'.
+            a_upper_bound (float): Upper bound for parameter 'a'.
+            b_lower_bound (float): Lower bound for parameter 'b'.
+            b_upper_bound (float): Upper bound for parameter 'b'.
+        """
+    def __init__(self, method="kumar", initial_a=1.0, initial_b=1.0, warp_level=0.25):
+        """
+        Initialize the Warp class with the specified method and initial parameters.
+
+        Args:
+            method (str): The method to use for transformations ('log' or 'kumar'). Default is 'kumar'.
+            initial_a (float): Initial value for parameter 'a'. Default is 1.0.
+            initial_b (float): Initial value for parameter 'b'. Default is 1.0.
+            warp_level (float): Warp level to determine bounds for parameters 'a' and 'b'. Default is 0.25.
+        """
         super(Warp, self).__init__()
         self.method = method
         self.a = nn.Parameter(torch.tensor(initial_a, dtype=torch.float64))
         self.b = nn.Parameter(torch.tensor(initial_b, dtype=torch.float64))
-        self.c = nn.Parameter(torch.tensor(initial_c, dtype=torch.float64)) if method == 'tanh' else None
         # Define the parameter bounds
         self.a_lower_bound = 1.0-min(1.0,warp_level)
         self.a_upper_bound = 1.0+warp_level
         self.b_lower_bound = 1.0-min(1.0,warp_level)
         self.b_upper_bound = 1.0+warp_level
     def transform(self, y):
+        """
+        Apply the specified transformation to the input.
+
+        Args:
+            y (torch.Tensor): The input tensor to transform.
+
+        Returns:
+            torch.Tensor: The transformed tensor.
+        """
+
         a = self._bounded_param(self.a, self.a_lower_bound, self.a_upper_bound)
         b = self._bounded_param(self.b, self.b_lower_bound, self.b_upper_bound)
         if self.method == 'log':
             return torch.log(y + 1)
-        elif self.method == 'tanh':
-            return self.a.exp() * torch.tanh(self.b.exp() * y + self.c) + y
         elif self.method == 'kumar':
             return 1 - (1 - y ** a) ** b
         else:
-            raise NotImplementedError(f"Transformation method '{self.method}' is not implemented.")
+            return y
 
     def grad(self, y):
-        if self.method == 'tanh':
-            return self.b.exp() * (1 - torch.tanh(self.b.exp() * y + self.c) ** 2) + 1
-        elif self.method == 'kumar':
+        """
+        Compute the gradient of the transformation. This is used to compute the Jacobian of the transformation, which is required to compute the correct likelyhood.
+
+        Args:
+            y (torch.Tensor): The input tensor to compute the gradient for.
+
+        Returns:
+            torch.Tensor: The gradient tensor.
+
+        Raises:
+            NotImplementedError: If the gradient computation is not implemented for the specified method.
+        """
+        if self.method == 'kumar':
             a = abs(self.a)  # Use built-in abs function
             b = abs(self.b)
             return a * b * (y ** (a - 1)) * ((1 - y ** a) ** (b - 1))
@@ -287,47 +348,60 @@ class Warp(nn.Module):
             raise NotImplementedError(f"Gradient not implemented for method '{self.method}'.")
 
     def _bounded_param(self, param, lower_bound, upper_bound):
-        # Use sigmoid to restrict param within [0, 1], then scale and shift to [lower_bound, upper_bound]
+        """
+        Bound the parameter within the specified range using a sigmoid function.
+
+        Args:
+            param (torch.Tensor): The parameter to bound.
+            lower_bound (float): The lower bound for the parameter.
+            upper_bound (float): The upper bound for the parameter.
+
+        Returns:
+            torch.Tensor: The bounded parameter.
+        """
         param_sigmoid = torch.sigmoid(param)
         return lower_bound + (upper_bound - lower_bound) * param_sigmoid
-    def inverse(self, mean_transformed, tol=1e-5, max_iter=1000):
-        if self.method == 'tanh':
-            initial_guess = mean_transformed.clone()
-            for _ in range(max_iter):
-                f_y = self.transform(initial_guess)
-                df_y = self.grad(initial_guess)
-                next_guess = initial_guess - (f_y - mean_transformed) / df_y
 
-                if torch.abs(f_y - mean_transformed).max() < tol:
-                    break
-                initial_guess = next_guess
-            return initial_guess
-        elif self.method == 'kumar':
+    def back_transform(self, mean_transformed, var_diag_transformed=None):
+        """
+       Apply the inverse transformation and compute the back-transformed mean and variance.
+
+       Args:
+           mean_transformed (torch.Tensor): The transformed mean tensor.
+           var_diag_transformed (torch.Tensor, optional): The transformed variance tensor. Default is None.
+
+       Returns:
+           tuple: The back-transformed mean and variance tensors.
+
+       Raises:
+           NotImplementedError: If the back transformation is not implemented for the specified method.
+       """
+        if self.method == 'kumar':
             a = self._bounded_param(self.a, self.a_lower_bound, self.a_upper_bound)
             b = self._bounded_param(self.b, self.b_lower_bound, self.b_upper_bound)
-            return (1 - (1 - mean_transformed) ** (1 / b)) ** (1 / a)
-        else:
-            raise NotImplementedError(f"Inverse not implemented for method '{self.method}'.")
 
-    def back_transform(self, mean_transformed, var_diag_transformed, tol=1e-5, max_iter=1000):
-        if self.method == 'log':
+            def inverse(mean_transformed):
+                return (1 - (1 - mean_transformed) ** (1 / b)) ** (1 / a)
+
+            median = inverse(mean_transformed)
+            if var_diag_transformed is not None:
+                var_diag = (inverse(mean_transformed + 2 * torch.sqrt(var_diag_transformed)) -
+                            inverse(mean_transformed - 2 * torch.sqrt(var_diag_transformed)))
+                var_diag = var_diag ** 2 / 4
+                return median, var_diag
+            else:
+                return median
+
+        elif self.method == 'log':
             mean = torch.exp(mean_transformed + 0.5 * var_diag_transformed) - 1
             var_diag = (torch.exp(var_diag_transformed) - 1) * torch.exp(2 * mean_transformed + var_diag_transformed)
             return mean, var_diag
-        elif self.method == 'tanh':
-            median = self.inverse(mean_transformed, tol=tol, max_iter=max_iter)
-            var_diag = (self.inverse(mean_transformed + 2 * torch.sqrt(var_diag_transformed), tol=tol, max_iter=max_iter) -
-                        self.inverse(mean_transformed - 2 * torch.sqrt(var_diag_transformed), tol=tol, max_iter=max_iter))
-            var_diag = var_diag ** 2 / 4
-            return median, var_diag
-        elif self.method == 'kumar':
-            median = self.inverse(mean_transformed)
-            var_diag = (self.inverse(mean_transformed + 2 * torch.sqrt(var_diag_transformed), tol=tol, max_iter=max_iter) -
-                        self.inverse(mean_transformed - 2 * torch.sqrt(var_diag_transformed), tol=tol, max_iter=max_iter))
-            var_diag = var_diag ** 2 / 4
-            return median, var_diag
+
         else:
-            raise NotImplementedError(f"Back transform not implemented for method '{self.method}'.")
+            if var_diag_transformed is not None:
+                return mean_transformed, var_diag_transformed
+            else:
+                raise NotImplementedError(f"Transform and inverse not implemented for method '{self.method}'.")
 class XYdata_normalization:
     def __init__(self, X, Y=None, normal_y_mode=0):
         # Compute mean and standard deviation for X

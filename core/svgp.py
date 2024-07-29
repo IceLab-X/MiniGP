@@ -129,13 +129,13 @@ if __name__ == '__main__':
     torch.manual_seed(4)
     # Train set
     num_data =10000
-    xtr,ytr,xte,yte=data.generate(num_data,1000,seed=4,input_dim=1)
+    xtr,ytr,xte,yte=data.generate(num_data,1000,seed=4,input_dim=18)
 
 
 
     # Training the model
-    num_inducing =40
-    batch_size = 200
+    num_inducing =100
+    batch_size = 1000
     learning_rate = 0.1
     num_epochs = 500
 
