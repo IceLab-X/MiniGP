@@ -7,5 +7,6 @@ Welcome to the core folder of the Mini-GP repository. This folder contains the f
 - autoGP.py: A GP model that automatically standardize the data and choose the kernel for you. It is a simple GP model that is easy to use for general users.
 - cigp_DeepKernel.py: A GP model that uses a deep kernel to model the data. It is a more complex GP model that is suitable for users who want to model complex data. [Original paper](https://arxiv.org/abs/1511.02222)
 - cigp_baseline.py: A basic GP model that is used as a baseline methods, and it is used for compare the performance of the other GP models.
+- hogp.py: A GP model that uses high-order output to model the data. It is suitable for users who want to model data with high-order output. [Original paper](https://proceedings.mlr.press/v89/zhe19a.html)
 - sgpr.py: A sparse GP model that uses variational inference to approximate the posterior distribution. It is suitable for users who want to model data with size between 1k to 10k. [Original paper](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf)
 - svgp.py: A sparse GP model that uses stochastic variational inference that allow Mini-Batch gradient descent. It is suitable for users who want to model data with size over 10k. [Original paper](https://arxiv.org/abs/1411.2005)
