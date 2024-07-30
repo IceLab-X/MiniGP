@@ -10,7 +10,7 @@ from data_sample import generate_example_data as data
 import numpy as np
 import torch
 import torch.nn as nn
-from core.cigp_v10 import cigp
+from core.cigp_v10_merge_with_cigp_baseline import cigp
 import core.GP_CommonCalculation as gp_pack
 import matplotlib.pyplot as plt
 EPS = 1e-10

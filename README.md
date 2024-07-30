@@ -15,6 +15,7 @@ We do not have a pip package yet. You can install it by cloning the repository a
   - **GPmodels_Advance:** Advance GP models, including GP with GPU acceleration, and automatic GP.
     - GP&GPU: a GP model with GPU acceleration.
     - autoGP: a GP model with automatic kernel selection, data standardization, input warping and training.
+    - GPTutorial_GP&GPU: Algorithms for GP with GPU acceleration.
     - GPTutorial_DynamicModel: GP dynamic model in Chinese. [Original paper](https://www.dgp.toronto.edu/~jmwang/gpdm/nips05final.pdf) 
     
   - **GPmodels_Classic:** basic GP model and its variation, such as DeepKernel GP, InputWarp GP . It demonstrates how to build a GP model with the GP_CommonCalculation.
