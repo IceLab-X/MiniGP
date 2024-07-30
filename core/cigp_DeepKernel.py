@@ -94,49 +94,7 @@ class CIGP_DKL(nn.Module):
     def print_parameters(self):
         for name, param in self.named_parameters():
             print(f"Parameter name: {name}, shape: {param.shape}")
+
 xtr, ytr,xte,yte = data.generate(600,100,seed=42,input_dim=3)
 
 
-def r2_score(y_true, y_pred):
-    ss_res = np.sum((y_true - y_pred) ** 2)
-    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
-    return 1 - (ss_res / ss_tot)
-xtr, ytr, xte, yte = data.generate(600, 100, seed=42, input_dim=3)
-model = CIGP_DKL(xtr, ytr)
-model2 = cigp(xtr, ytr)
-
-# Initialize lists to store R^2 values
-r2_values_model = []
-r2_values_model2 = []
-
-# Training function modified to track R^2 scores
-def train_model_with_r2_tracking(model, xte, yte, epochs, lr, r2_values):
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    for epoch in range(epochs):
-        model.train()
-        optimizer.zero_grad()
-        loss = model.negative_log_likelihood()
-        loss.backward()
-        optimizer.step()
-
-        # Calculate R^2 score with no gradient calculation
-        with torch.no_grad():
-            y_pred, _ = model.forward(xte)
-            r2 = r2_score(yte.numpy(), y_pred.numpy())
-            r2_values.append(r2)
-        if epoch % 10 == 0:
-            print(f"Epoch {epoch}/{epochs}, Loss: {loss.item()}, R^2: {r2}")
-
-# Train both models and track R^2
-train_model_with_r2_tracking(model, xte, yte, 800, 0.1, r2_values_model)
-train_model_with_r2_tracking(model2, xte, yte, 800, 0.1, r2_values_model2)
-
-# Plotting the R^2 values
-plt.figure(figsize=(10, 6))
-plt.plot(range(800), r2_values_model, label='Model 1 (CIGP_DKL)')
-plt.plot(range(800), r2_values_model2, label='Model 2 (cigp)')
-plt.xlabel('Training Epochs')
-plt.ylabel('R^2 Score')
-plt.title('R^2 Score vs. Training Epochs')
-plt.legend()
-plt.show()
