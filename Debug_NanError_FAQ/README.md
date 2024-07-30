@@ -1,4 +1,4 @@
-# Model_FAQ
+# Debug NanError FAQ
 
 This folder contains the answers to frequently asked questions about Gaussian Process models, mainly, the NaN error caused by non-positive definite kernels.
 
