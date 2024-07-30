@@ -129,7 +129,7 @@ class ARDKernel(nn.Module):
         scaled_x1 = x1 / length_scales
         scaled_x2 = x2 / length_scales
         sqdist = torch.cdist(scaled_x1, scaled_x2, p=2)**2
-        return signal_variance.exp() * torch.exp(-0.5 * sqdist)
+        return signal_variance * torch.exp(-0.5 * sqdist)
 
 
     
@@ -435,7 +435,7 @@ class PeriodicKernel(nn.Module):
             period (nn.Parameter): The period.
         """
 
-    def __init__(self, input_dim, initial_length_scale=1.0, initial_period=2.0):
+    def __init__(self, initial_length_scale=0.0, initial_period=1.0):
         super(PeriodicKernel, self).__init__()
         self.length_scales = nn.Parameter(torch.ones(1) * initial_length_scale)
         self.period = nn.Parameter(torch.tensor(initial_period))
@@ -452,8 +452,8 @@ class PeriodicKernel(nn.Module):
             Tensor: The Periodic kernel matrix of shape (n, m).
         """
         # Ensure length scales and period are positive
-        length_scales = torch.abs(self.length_scales)+EPS
-        period = torch.abs(self.period)+EPS
+        length_scales = torch.exp(self.length_scales)
+        period = torch.exp(self.period)
 
         # Scale inputs by length scales
         scaled_x1 = torch.tensor(Pi)*x1/period
