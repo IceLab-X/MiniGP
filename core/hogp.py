@@ -149,9 +149,12 @@ if __name__ == '__main__':
     y = np.load('data_sample/output_fidelity_2.npy')
     y = torch.tensor(y, dtype=torch.float32).to(device)
 
-    from base_function.normalizer import Dateset_normalize_manager
-    dnm = Dateset_normalize_manager([x], [y])
-
+    import GP_CommonCalculation as GP
+    normalizer=GP.DataNormalization(mode=1)
+    normalizer.fit(x,'x')
+    normalizer.fit(y,'y')
+    x=normalizer.normalize(x,'x')
+    y=normalizer.normalize(y,'y')
     xtr = [x[:128,:]]
     ytr = [y[:128,:]]
     xte = [x[128:,:]]
@@ -165,7 +168,7 @@ if __name__ == '__main__':
 
     GPmodel.to(device)
 
-    xtr, ytr = dnm.normalize_all(xtr, ytr)
+
     for i in range(300):
         optimizer.zero_grad()
         loss = GPmodel.log_likelihood(xtr, ytr)
@@ -174,9 +177,8 @@ if __name__ == '__main__':
         print('iter', i, 'nll:{:.5f}'.format(loss.item()))
         
     with torch.no_grad():
-        xte=dnm.normalize_inputs(xte)
         ypred, ypred_var = GPmodel.forward(xtr,xte)
-        ypred=dnm._denormalize(ypred,'output',0)
+        ypred=normalizer.denormalize(ypred,'y')
     
     ##plot_res_for_only_1
     # for i in range(yte[0].shape[0]):
@@ -198,7 +200,7 @@ if __name__ == '__main__':
     output_filename = os.path.join("figures", f"figure.png")
     plt.savefig(output_filename)
     plt.close()
-    # plt.show()
+    plt.show()
     
     ##Test_unit
     # unittest.main()

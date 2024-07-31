@@ -124,7 +124,7 @@ def train_stgp(model, train_space_coordinates, train_time_coordinates, train_stD
 
 
 if __name__ == '__main__':
-    data = loadmat('D:\iceLab\data_sample\data_v1_09_05_fill.mat')
+    data = loadmat('D:\iceLab\data_sample\data_v1_09_05_fill.mat') # you have to put your abosulte path here
     #time for the pm25 measurement data pm25 
     time = data['time']
     #spatial coordinate [lat,long,elevation] for all sensors in SLC
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     with torch.no_grad():
         yPred, yVar = model(str, time, str_daq, time)
 
-    plt.plot(yPred.T,'--')  #show the predictions at the daq locations
-    plt.plot(pm25_daq.T,'-')    #show the daq observations
+    plt.plot(yPred.cpu().numpy().T, '--')  # show the predictions at the daq locations
+    plt.plot(pm25_daq.T, '-')  # show the daq observations
     plt.show()
     # plt.savefig('1_10_TODO\\stgp.png')
