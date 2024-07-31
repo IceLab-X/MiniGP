@@ -1,14 +1,12 @@
 
 import torch
 import torch.nn as nn
-import numpy as np
-from matplotlib import pyplot as plt
-from model_FAQ.non_positive_definite_fixer import remove_similar_data
 import core.GP_CommonCalculation as GP
 from data_sample import generate_example_data as data
 from core.kernel import NeuralKernel,ARDKernel
 import time
-from core.cigp_v10 import cigp
+from core.sgpr import vsgp
+
 print(torch.__version__)
 # I use torch (1.11.0) for this work. lower version may not work.
 
@@ -21,37 +19,27 @@ PI = 3.1415
 torch.set_default_dtype(torch.float64)
 class autoGP(nn.Module):
 
-    def __init__(self, X, Y,kernel=None, normal_method='min_max', inputwarp=False,num_inducing=None,deepkernel=False):
+    def __init__(self, X, Y, kernel=None, normal_method='min_max', inputwarp=True, num_inducing=None, deepkernel=False):
         super(autoGP, self).__init__()
 
-        self.data = GP.DataNormalization(method=normal_method)
-        self.data.fit(X, 'x')
-        self.data.fit(Y, 'y')
-        # self.X = self.data.normalize(X, 'x')
-        self.Y = self.data.normalize(Y, 'y')
-
-        self.X=X
-
         # GP hyperparameters
-        self.log_beta = nn.Parameter(torch.ones(1) * -4)  # Initial noise level
+        self.log_beta = nn.Parameter(torch.ones(1) * 0)  # Initial noise level
+
         self.inputwarp=inputwarp
         # Inducing points
-        input_dim = self.X.size(1)
+        input_dim = X.size(1)
 
         if kernel is None:
             self.kernel = NeuralKernel(input_dim)
         else:
-            self.kernel=kernel
+            self.kernel=kernel(input_dim)
 
         if input_dim>2:
             self.deepkernel=True
-            self.kernel=ARDKernel(input_dim)
+            self.kernel=kernel(input_dim)
 
         else:
             self.deepkernel=deepkernel
-
-
-
 
 
         if self.deepkernel:
@@ -61,39 +49,41 @@ class autoGP(nn.Module):
                                                         nn.LeakyReLU(),
                                                         nn.Linear(input_dim * 5, input_dim))
             self.inputwarp=False  # if deepkernel is enabled then inputwarp is disabled
-        else:
-            self.FeatureExtractor = lambda x: x # Do nothing
-            self.inputwarp=True # if deepkernel is disabled then inputwarp is enabled
+        #else:
+
+            #self.inputwarp=True # if deepkernel is disabled then inputwarp is enabled
 
         if self.inputwarp:
             self.warp = GP.Warp(method='kumar', initial_a=1.0, initial_b=1.0)
+            self.data = GP.DataNormalization(method='min_max')
+
         else:
-            self.warp = GP.Warp(method='unchange', initial_a=1.0, initial_b=1.0)
-
+            self.data = GP.DataNormalization(method=normal_method)
+        self.data.fit(X, 'x')
+        self.data.fit(Y, 'y')
+        self.X = self.data.normalize(X, 'x')
+        self.Y = self.data.normalize(Y, 'y')
         if num_inducing is None:
-            num_inducing=self.X.size(0)*input_dim//20
-
+            num_inducing=self.X.size(0)*input_dim//10
 
 
         self.xm = nn.Parameter(torch.rand((num_inducing, input_dim)))  # Inducing points
+        #print(self.deepkernel,self.inputwarp,self.kernel)
 
     def negative_lower_bound(self):
         """Negative lower bound as the loss function to minimize."""
-        #X=self.warp.transform(self.X)
+
         if self.deepkernel:
             X1=self.FeatureExtractor(self.X)
-            xm1=self.FeatureExtractor(self.xm)
-
             X=(X1-X1.mean(0).expand_as(X1))/X1.std(0).expand_as(X1)
-            xm=(xm1-xm1.mean(0).expand_as(xm1))/xm1.std(0).expand_as(xm1)
 
         elif self.inputwarp:
             X=self.warp.transform(self.X)
-            xm=self.xm
 
         else:
             X=self.X
-            xm=self.xm
+
+        xm=self.xm
 
         n = self.X.size(0)
         K_mm = self.kernel(xm, xm) + JITTER * torch.eye(self.xm.size(0))
@@ -121,13 +111,16 @@ class autoGP(nn.Module):
         """Compute optimal inducing points mean and covariance."""
         #X = self.warp.transform(self.X)
         if self.deepkernel:
-            X1=self.FeatureExtractor(self.X)
+            X1 = self.FeatureExtractor(self.X)
             X = (X1 - X1.mean(0).expand_as(X1)) / X1.std(0).expand_as(X1)
-            xm1 = self.FeatureExtractor(self.xm)
-            xm=(xm1-xm1.mean(0).expand_as(xm1))/xm1.std(0).expand_as(xm1)
+
+        elif self.inputwarp:
+            X=self.warp.transform(self.X)
+
         else:
-            xm=self.xm
             X=self.X
+
+        xm = self.xm
 
         K_mm = self.kernel(xm, xm) + JITTER * torch.eye(self.xm.size(0))
         L = torch.linalg.cholesky(K_mm)
@@ -144,18 +137,20 @@ class autoGP(nn.Module):
 
     def forward(self, Xte):
         """Compute mean and variance for posterior distribution."""
-        self.data.fit(Xte, 'xte')
-        Xte = self.data.normalize(Xte, 'x')  # we have to make sure xte is in [0,1]
-        if self.deepkernel:
-            X1 = self.FeatureExtractor(self.X)
-            #Xte = self.warp.transform(Xte)
-            Xte1=self.FeatureExtractor(Xte)
-            Xte = (Xte1 - X1.mean(0).expand_as(Xte)) / X1.std(0).expand_as(Xte)
 
-            xm1 = self.FeatureExtractor(self.xm)
-            xm=(xm1-xm1.mean(0).expand_as(xm1))/xm1.std(0).expand_as(xm1)
+        if self.deepkernel:
+            Xte1 = self.data.normalize(Xte, 'x')
+            X1 = self.FeatureExtractor(self.X)
+            Xte2=self.FeatureExtractor(Xte1)
+            Xte = (Xte2 - X1.mean(0).expand_as(Xte)) / X1.std(0).expand_as(Xte)
+
+        elif self.inputwarp:
+            self.data.fit(Xte, 'xte')
+            Xte1 = self.data.normalize(Xte, 'xte')
+            Xte = self.warp.transform(Xte1)
         else:
-            xm = self.xm
+            Xte = self.data.normalize(Xte, 'x')
+        xm = self.xm
         K_tt = self.kernel(Xte, Xte)
         K_tm = self.kernel(Xte, xm)
         K_mt = K_tm.t()
@@ -170,30 +165,30 @@ class autoGP(nn.Module):
 
         return mean, var_diag
 
-    def train_auto(self,niteration1=10,lr1=0.01,niteration2=100,lr2=0.001):
+    def train_auto(self, niteration1=100, lr1=0.1, niteration2=20, lr2=0.001):
         start_time = time.time()
         optimizer = torch.optim.Adam(self.parameters(), lr=lr1)
         optimizer.zero_grad()
         for i in range(niteration1):
             optimizer.zero_grad()
             loss = self.negative_lower_bound()
-            loss.backward(retain_graph=True)
+            loss.backward()
             optimizer.step()
             #if i%10==0:
                #print(self.warp.transform(self.Y)[:2])
                 #print(self.warp.a,self.warp.b)
-            print('train with adam, iter', i, ' nll:', loss.item())
+            #print('train with adam, iter', i, ' nll:', loss.item())
 
         optimizer = torch.optim.LBFGS(self.parameters(), max_iter=niteration2, lr=lr2)
         def closure():
             optimizer.zero_grad()
             loss = self.negative_lower_bound()
             loss.backward(retain_graph=True)  # Retain the graph
-            print('train with LBFGS, nll:', loss.item())
+            #print('train with LBFGS, nll:', loss.item())
 
             return loss
 
-        #optimizer.step(closure)
+        optimizer.step(closure)
         end_time = time.time()  # 结束时间
         training_time = end_time - start_time
         print(f'AutoGP training completed in {training_time:.2f} seconds')
@@ -207,16 +202,22 @@ if __name__ == "__main__":
     # Y = torch.tensor(Y, dtype=torch.float64)
     # Xte = torch.linspace(0, 10, 1000).view(-1, 1)
     # Yte = torch.sin(Xte)
-    xtr, ytr, xte, yte = data.generate(1000, 1000, seed=2, input_dim=1)
-    model = autoGP(xtr, ytr, deepkernel=False)
+    xtr, ytr, xte, yte = data.generate(500, 1000, seed=4, input_dim=1)
+    model = autoGP(xtr, ytr,normal_method="standard", kernel=NeuralKernel,inputwarp=True, deepkernel=False)
     model.train_auto()
-
+    model2=vsgp(xtr, ytr, 50)
+    model2.train_adam(100, 0.1)
+    mean2,_=model2.forward(xte)
+    mse2=torch.mean((mean2-yte)**2)
     mean, var = model.forward(xte)
     mse= torch.mean((mean - yte) ** 2)
-    print(mse)
-    for name, param in model.named_parameters():
-         print(name, param)
-    print(model.deepkernel)
+    print(mse,mse2)
+
+    # for name, param in model.named_parameters():
+    #      print(name, param)
+    # for name, param in model2.named_parameters():
+    #      print(name, param)
+    # print(model.deepkernel)
     # plt.plot(Xte, mean.detach().numpy(), 'r')
     # plt.plot(Xte, Yte, 'g')
     # plt.errorbar(Xte.numpy().reshape(300), mean.detach().numpy().reshape(300),
