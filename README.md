@@ -31,7 +31,7 @@ We do not have a pip package yet. You can install it by cloning the repository a
     - 01_sgpr_GPTutorial: A detailed tutorial for Sparse Gaussian Process with variational learning inducing points. [Original paper](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf)
     - 02_svgp, A demo for implementing mini-batch gradient descent on SVGP allows training a GP with 10k inputs in 2 seconds. 
     - 02_svgp_GPTutorial, A detailed tutorial for Stochastic Variational Interference GP model that can allow mini-batch training. [Original paper](https://arxiv.org/abs/1411.2005)
-- **Model_FAQ:** Frequently asked questions for GP model. It contains some techniques to solve NAN problem in GP model. More details can be found in the README file in the Model_FAQ folder.
+- **Debug_NaNError_FAQ:** Frequently asked questions for GP model. It contains some techniques to solve NaN problem in GP model. More details can be found in the README file in the Debug_NaNError_FAQ folder.
 
 
 
