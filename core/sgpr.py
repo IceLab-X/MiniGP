@@ -17,7 +17,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in Ma
 JITTER = 1e-3
 EPS = 1e-10
 PI = 3.1415
-
+torch.set_default_dtype(torch.float64)
 
 class vsgp(nn.Module):
     def __init__(self, X, Y, num_inducing):

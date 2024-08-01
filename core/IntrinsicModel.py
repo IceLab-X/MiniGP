@@ -18,7 +18,7 @@ def kronecker(A, B):
     """
     AB = torch.einsum("ab,cd->acbd", A, B)
     AB = AB.view(A.size(0) * B.size(0), A.size(1) * B.size(1))
-    return AB
+    return AB.to(A.device)
 
 class stgp(nn.Module):
     def __init__(self, latlong_length_scale=4300., elevation_length_scale=30., time_length_scale=0.25,
@@ -57,8 +57,8 @@ class stgp(nn.Module):
         latlong_K = self.latlong_kernel(space_coordinates[:, 0:2], space_coordinates[:, 0:2])
         elevation_K = self.elevation_kernel(space_coordinates[:, 2:3], space_coordinates[:, 2:3])
 
-        spatial_K = latlong_K * elevation_K + torch.eye(latlong_K.size(0)) * JITTER
-        temporal_K = self.temporal_kernel(time_coordinates, time_coordinates) + torch.eye(time_coordinates.size(0)) * JITTER
+        spatial_K = latlong_K * elevation_K + torch.eye(latlong_K.size(0), device=device) * JITTER
+        temporal_K = self.temporal_kernel(time_coordinates, time_coordinates) + torch.eye(time_coordinates.size(0), device=device) * JITTER
 
         # Matrix Eigendecomposition
         eigen_value_s, eigen_vector_s = torch.linalg.eigh(spatial_K, UPLO='L')
@@ -102,10 +102,15 @@ class stgp(nn.Module):
 
         sigma_inverse = self.eigen_vector_st @ self.Lambda_st @ self.eigen_vector_st.transpose(-2, -1)
 
-        K_space_star2 = self.latlong_kernel(test_space_coordinates[:, 0:2], test_space_coordinates[:, 0:2])
-        K_time_star2 = self.temporal_kernel(test_time_coordinates, test_time_coordinates)
-        K_space_time_star2 = kronecker(K_time_star2, K_space_star2)
-        yVar = K_space_time_star2.diag() - (test_st_K @ sigma_inverse @ test_st_K.t()).diag()
+        #option1: fast way
+        diag_term = (test_st_K @ sigma_inverse @ test_st_K.t()).diag()
+        yVar = self.log_signal_variance.exp() - diag_term
+
+        #option 2: standard way
+        # K_space_star2 = self.latlong_kernel(test_space_coordinates[:, 0:2], test_space_coordinates[:, 0:2])
+        # K_time_star2 = self.temporal_kernel(test_time_coordinates, test_time_coordinates)
+        # K_space_time_star2 = kronecker(K_time_star2, K_space_star2)
+        # yVar = K_space_time_star2.diag() - (test_st_K @ sigma_inverse @ test_st_K.t()).diag()
 
         yPred = yPred.view(test_time_coordinates.size(0), test_space_coordinates.size(0)).transpose(-2, -1)
         yVar = yVar.view(test_time_coordinates.size(0), test_space_coordinates.size(0)).transpose(-2, -1)
@@ -136,18 +141,24 @@ if __name__ == '__main__':
     #reading from daq sensors
     pm25_daq = data['pm25_daq']
 
-    str = torch.tensor(str)
-    time = torch.tensor(time)  
-    pm25 = torch.tensor(pm25)
-    str_daq = torch.tensor(str_daq)
+    device = torch.device('cpu')
 
-    model = stgp()
+    str = torch.tensor(str).to(device)
+    time_data = torch.tensor(time).to(device)
+    pm25 = torch.tensor(pm25).to(device)
+    str_daq = torch.tensor(str_daq).to(device)
 
-    train_stgp(model, str, time, pm25, lr=0.1, epochs=100)
+    model = stgp().to(device)
+
+    train_stgp(model, str, time_data, pm25, lr=0.1, epochs=100)
+    import time
+    start_time = time.time()
     with torch.no_grad():
-        yPred, yVar = model(str, time, str_daq, time)
+        yPred, yVar = model(str, time_data, str_daq, time_data)
+    end_time = time.time()
 
-    plt.plot(yPred.cpu().numpy().T, '--')  # show the predictions at the daq locations
+    print(f"Prediction computation time: {end_time - start_time:.6f} seconds")
+    plt.plot(yPred.numpy().T, '--')  # show the predictions at the daq locations
     plt.plot(pm25_daq.T, '-')  # show the daq observations
     plt.show()
     # plt.savefig('1_10_TODO\\stgp.png')

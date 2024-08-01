@@ -63,13 +63,14 @@ if __name__ == '__main__':
     ytr = torch.hstack([torch.sin(xtr),
                        torch.cos(xtr),
                         xtr.tanh()] )+ torch.randn(64, 3) * 0.1
-    
+
     # normalize output data to zero mean and unit variance across each dimension
-    ytr = (ytr - ytr.mean()) / ytr.std()    #works well for cigp
-    
+    ytr_normalized = (ytr - ytr.mean()) / ytr.std()    #works well for cigp
+    xtr_normalized = (xtr - xtr.mean()) / xtr.std()
+    xte_normalized = (xte - xtr.mean()) / xtr.std()
     kernel1 = kernel.ARDKernel(1)
     # kernel1 = kernel.LinearKernel(1)
-    kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.ARDKernel(1))
+    #kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.ARDKernel(1))
     
     # define the gplvm model
     # define latent variable
@@ -80,38 +81,41 @@ if __name__ == '__main__':
     GPmodel = CIGP(kernel=kernel1, noise_variance=1.0)
     
     # optimization now includes the latent variable z
-    optimizer = torch.optim.Adam( list(GPmodel.parameters()) + [z], lr=1e-1)
+    optimizer = torch.optim.Adam(list(GPmodel.parameters()) + [z], lr=1e-1)
     # optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-1)
     
-    for i in range(1000):
+    for i in range(200):
         startTime = time.time()
         optimizer.zero_grad()
-        loss = -GPmodel.log_likelihood(z, ytr)
+        loss = -GPmodel.log_likelihood(z, ytr_normalized)
         loss.backward()
         optimizer.step()
         print('iter', i, 'nll:{:.5f}'.format(loss.item()))
         timeElapsed = time.time() - startTime
         print('time elapsed: {:.3f}s'.format(timeElapsed))
         
-    # with torch.no_grad():
-    #     ypred, ypred_var = GPmodel.forward(xtr, ytr, xte)
-        
+    with torch.no_grad():
+        ypred, ypred_var = GPmodel.forward(xtr_normalized, ytr_normalized, xte_normalized)
+    ypred = ypred * ytr.std() + ytr.mean()
+    ypred_var = ypred_var * ytr.std() + ytr.mean()
     plt.figure()
     plt.scatter(z.detach().numpy(), xtr.detach().numpy(), c='r', marker='+')
     plt.show()
         
-    # # plt.close('all')
-    # color_list = ['r', 'g', 'b']
+    # plt.close('all')
+    color_list = ['r', 'g', 'b']
     
-    # plt.figure()
-    # # plt.plot(xtr, ytr, 'b+')
-    # for i in range(3):
-    #     plt.plot(xtr, ytr[:, i], color_list[i]+'+')
-    #     # plt.plot(xte, yte[:, i], label='truth', color=color_list[i])
-    #     plt.plot(xte, ypred[:, i], label='prediction', color=color_list[i], linestyle='--')
-    #     plt.fill_between(xte.squeeze(-1).detach().numpy(),
-    #                      ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
-    #                      ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
-    #                      alpha=0.2)
-    # plt.show()
+    plt.figure()
+    # plt.plot(xtr, ytr, 'b+')
+    for i in range(3):
+        #plt.plot(xtr, ytr[:, i], color_list[i]+'+')
+        plt.scatter(z.detach().numpy(), ytr[:, i], color=color_list[i])
+        # plt.plot(xte, yte[:, i], label='truth', color=color_list[i])
+        # plt.plot(xte, ypred[:, i], label='prediction', color=color_list[i], linestyle='--')
+        # plt.fill_between(xte.squeeze(-1).detach().numpy(),
+        #                  ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
+        #                  ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
+        #                  alpha=0.2)
+    plt.legend()
+    plt.show()
 
