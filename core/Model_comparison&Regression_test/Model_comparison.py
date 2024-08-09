@@ -75,10 +75,10 @@ class DataGenerator:
 torch.manual_seed(1)
 np.random.seed(0)
 
-data_gen = DataGenerator(n_datasets=20, n_samples=300, x_range=20, x_dim=1)
-data_gen.generate_polynomial_data()
+data_gen = DataGenerator(n_datasets=50, n_samples=500, x_range=20, x_dim=1)
+#data_gen.generate_polynomial_data()
 data_gen.generate_warped_data()
-data_gen.generate_periodic_data()
+#data_gen.generate_periodic_data()
 #data_gen.plot_datasets(num_plots=5)
 
 model1_better_count = 0
@@ -100,7 +100,7 @@ for X, y in data_gen.datasets:
     y_test = torch.tensor(y_test, dtype=torch.float64).view(-1, 1)
 
     # Model 1: autoGP
-    model1 = autoGP(X_train, y_train, normal_method="standard", kernel=ARDKernel, inputwarp=False, deepkernel=False)
+    model1 = autoGP(X_train, y_train, normal_method="standard", kernel=ARDKernel, inputwarp=True, deepkernel=False)
     model1.train_auto()
     y_pred_model1, _ = model1.forward(X_test)
     r2_model1 = r2_score(y_test.detach(), y_pred_model1.detach())
@@ -159,10 +159,10 @@ plt.plot(range(1, len(r2_scores_model1) + 1), r2_scores_model1, '^-', label='aut
 plt.plot(range(1, len(r2_scores_model2) + 1), r2_scores_model2, 'o-', label='vsgp R²')
 plt.xlabel('Dataset Number')
 plt.ylabel('R² Score')
-plt.title('R² Scores of autoGP and vsgp across Different Datasets')
+plt.title('R² Scores of autoGP and vsgp across warped Datasets')
 plt.legend()
 
 
 # Save the plot as an image file
-plt.savefig('Model_comparison_autoGP.png')
+plt.savefig('Model_comparison_warped.png')
 plt.show()
