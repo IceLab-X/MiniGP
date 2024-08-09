@@ -31,24 +31,24 @@ class vsgp(nn.Module):
 
         # GP hyperparameters
         self.log_beta = nn.Parameter(torch.ones(1) * 0)  # Initial noise level
-
+        self.device = self.X.device
 
         # Inducing points
         input_dim=self.X.size(1)
         self.kernel = ARDKernel(input_dim)
         self.xm = nn.Parameter(torch.rand((num_inducing, input_dim)))  # Inducing points
 
-    def negative_lower_bound(self):
+    def negative_log_likelihood(self):
         """Negative lower bound as the loss function to minimize."""
         n = self.X.size(0)
-        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0))
+        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), device=self.device)
         L = torch.linalg.cholesky(K_mm)
         K_mn = self.kernel(self.xm, self.X)
         K_nn = self.kernel(self.X, self.X)
         A = torch.linalg.solve_triangular(L, K_mn, upper=False)
         A = A * torch.sqrt(self.log_beta.exp())
         AAT = A @ A.t()
-        B = torch.eye(self.xm.size(0)) + AAT + JITTER * torch.eye(self.xm.size(0))
+        B = AAT + (1+JITTER) * torch.eye(self.xm.size(0),device=self.device)
         LB = torch.linalg.cholesky(B)
 
         c = torch.linalg.solve_triangular(LB, A @ self.Y, upper=False)
@@ -64,7 +64,7 @@ class vsgp(nn.Module):
 
     def optimal_inducing_point(self):
         """Compute optimal inducing points mean and covariance."""
-        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0))
+        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0),device=self.device)
         L = torch.linalg.cholesky(K_mm)
         L_inv = torch.inverse(L)
         K_mm_inv = L_inv.t() @ L_inv
@@ -100,7 +100,7 @@ class vsgp(nn.Module):
         optimizer.zero_grad()
         for i in range(niteration):
             optimizer.zero_grad()
-            loss = self.negative_lower_bound()
+            loss = self.negative_log_likelihood()
             loss.backward()
             optimizer.step()
             #print('iter', i, ' nll:', loss.item())
@@ -119,4 +119,43 @@ class vsgp(nn.Module):
 
         optimizer.step(closure)
 
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    import data_sample.generate_example_data as data
+    print('testing')
+    device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    xtr, ytr, xte, yte = data.generate(2000, 500, seed=2)
+    xtr = xtr.to(device)
+    ytr = ytr.to(device)
+    xte = xte.to(device)
+    yte = yte.to(device)
 
+    #print(ytr)
+    GPmodel = vsgp(xtr, ytr, num_inducing=200).to(device)
+    optimizer = torch.optim.Adam(GPmodel.parameters(), lr=0.1)
+
+    import time
+
+    iteration_times = []
+    for i in range(200):
+        start_time = time.time()
+        optimizer.zero_grad()
+        loss = GPmodel.negative_log_likelihood()
+        loss.backward()
+        optimizer.step()
+        end_time= time.time()
+        iteration_times.append(end_time - start_time)
+
+    average_iteration_time = sum(iteration_times) / len(iteration_times)
+
+
+    with torch.no_grad():
+        ypred, ypred_var = GPmodel.forward(xte)
+        mse= torch.mean((yte-ypred)**2)
+
+        R_square = 1 - torch.sum((yte - ypred) ** 2) / torch.sum((yte - yte.mean()) ** 2)
+        print(average_iteration_time)
+        print(mse,R_square)
+        plt.plot(xte.cpu().numpy(), yte.cpu().numpy(), 'r.')
+        plt.plot(xte.cpu().numpy(), ypred.cpu().numpy(), 'b.')
+        plt.show()
