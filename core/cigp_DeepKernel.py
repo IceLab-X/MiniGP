@@ -10,8 +10,9 @@ from data_sample import generate_example_data as data
 import numpy as np
 import torch
 import torch.nn as nn
-from core.cigp_v10_merge_with_cigp_baseline import cigp
+from core.kernel import ARDKernel
 import core.GP_CommonCalculation as gp_pack
+
 import matplotlib.pyplot as plt
 EPS = 1e-10
 
@@ -20,16 +21,18 @@ class CIGP_DKL(nn.Module):
     def __init__(self, X,Y, normal_y_mode=0):
         super().__init__()
         # normalize X independently for each dimension
-        self.X=X
-        self.Y=Y
+        self.normalizer=gp_pack.DataNormalization()
+        self.normalizer.fit(X,'x')
+        self.normalizer.fit(Y,'y')
+        self.X = self.normalizer.normalize(X,'x')
+        self.Y = self.normalizer.normalize(Y,'y')
 
         # GP hyperparameters
         self.log_beta = nn.Parameter(
             torch.ones(1) * 0)  # a large noise by default. Smaller value makes larger noise variance.
-        self.log_length_scale = nn.Parameter(torch.zeros(3))  # ARD length scale
-        self.log_scale = nn.Parameter(torch.zeros(1))  # kernel scale
-        input_dim = self.X.shape[1]
 
+        input_dim = self.X.shape[1]
+        self.kernel = ARDKernel(input_dim=input_dim)
         self.FeatureExtractor = torch.nn.Sequential(nn.Linear(input_dim, input_dim*2),
             nn.LeakyReLU(),
             nn.Linear(input_dim *2, input_dim *2),
@@ -39,18 +42,6 @@ class CIGP_DKL(nn.Module):
             nn.Linear(input_dim * 2, input_dim))
         
 
-    def kernel(self, X1, X2):
-        # the common RBF kernel
-        X1 = X1 / self.log_length_scale.exp()
-        X2 = X2 / self.log_length_scale.exp()
-        # X1_norm2 = X1 * X1
-        # X2_norm2 = X2 * X2
-        X1_norm2 = torch.sum(X1 * X1, dim=1).view(-1, 1)
-        X2_norm2 = torch.sum(X2 * X2, dim=1).view(-1, 1)
-
-        K = -2.0 * X1 @ X2.t() + X1_norm2.expand(X1.size(0), X2.size(0)) + X2_norm2.t().expand(X1.size(0), X2.size(0))  #this is the effective Euclidean distance matrix between X1 and X2.
-        K = self.log_scale.exp() * torch.exp(-0.5 * K)
-        return K
 
     def forward(self, x_test):
 
@@ -95,6 +86,6 @@ class CIGP_DKL(nn.Module):
         for name, param in self.named_parameters():
             print(f"Parameter name: {name}, shape: {param.shape}")
 
-xtr, ytr,xte,yte = data.generate(600,100,seed=42,input_dim=3)
+
 
 

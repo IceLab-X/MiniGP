@@ -15,6 +15,19 @@ EPS = 1e-9
 
 # util functions to compute the log likelihood.
 def conjugate_gradient(A, b, x0=None, tol=1e-1, max_iter=1000):
+    """
+       Solve a system of linear equations Ax = b (equivalently x=A^{-1} b) using the Conjugate Gradient method.
+        tool function to compute the log likelihood
+       Parameters:
+       A (torch.Tensor): The square, symmetric, positive-definite matrix A.
+       b (torch.Tensor): The right-hand side vector b.
+       x0 (torch.Tensor, optional): The initial guess for the solution vector x. If None, defaults to a zero vector.
+       tol (float, optional): The tolerance for the stopping criterion. Defaults to 1e-1.
+       max_iter (int, optional): The maximum number of iterations. Defaults to 1000.
+
+       Returns:
+       torch.Tensor: The solution vector x.
+    """
     if x0 is None:
         x = torch.zeros_like(b)
     else:
@@ -72,7 +85,7 @@ def compute_inverse_and_log_det_positive_eigen(matrix):
     return inverse_matrix, log_det_K
 
 # compute the log likelihood of a normal distribution
-def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
+def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky'):
     """
     Compute the log-likelihood of a Gaussian distribution N(y|0, cov). If you have a mean mu, you can use N(y|mu, cov) = N(y-mu|0, cov).
 
@@ -92,17 +105,8 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     
     # assert if the correct dimension
     assert len(y.shape) == 2 and len(cov.shape) == 2, "y, mean, cov should be 2D tensors"
-    
-    if Kinv_method == 'cholesky1':
-        L = torch.linalg.cholesky(cov)
-        L_inv = torch.inverse(L)
-        K_inv = L_inv.T @ L_inv
-        return -0.5 * (y.T @ K_inv @ y + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
-    elif Kinv_method == 'cholesky2':
-        L = torch.linalgcholesky(cov)
-        return -0.5 * (y.T @ torch.cholesky_solve(y, L) + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
-    
-    elif Kinv_method == 'cholesky3':
+
+    if Kinv_method == 'cholesky':
         # fastest implementation so far for any covariance matrix
         L = torch.linalg.cholesky(cov)
         # return -0.5 * (y_use.T @ torch.cholesky_solve(y_use, L) + L.diag().log().sum() + len(x_train) * np.log(2 * np.pi))
@@ -113,16 +117,12 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
             # 
             y_dim = y.shape[1]
             log_det_K = 2 * torch.sum(torch.log(torch.diag(L)))
-            gamma = torch.cholesky_solve(y, L, upper = False)
+            gamma = torch.linalg.solve_triangular(L, y, upper = False)
             return - 0.5 * ( (gamma ** 2).sum() + log_det_K * y_dim + len(y) * y_dim * np.log(2 * np.pi) )
         else:
             gamma = torch.linalg.solve_triangular(L,y,upper=False)
             return -0.5 * (gamma.T @ gamma + 2*L.diag().log().sum() + len(y) * np.log(2 * np.pi))
 
-    elif Kinv_method == 'direct':
-        # very slow
-        K_inv = torch.inverse(cov)
-        return -0.5 * (y.T @ K_inv @ y + torch.logdet(cov) + len(y) * np.log(2 * np.pi))
     elif Kinv_method == 'torch_distribution_MN1':
         L = torch.linalg.cholesky(cov)
         return torch.distributions.MultivariateNormal(y, scale_tril=L).log_prob(y)
@@ -139,17 +139,10 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     else:
         raise ValueError('Kinv_method should be either direct or cholesky')
     
-def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
+def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky'):
     # Sigma = Sigma + torch.eye(len(Sigma)) * EPS
-    if Kinv_method == 'cholesky1':   # kernel inverse is not stable, use cholesky decomposition instead
-        L = torch.linalg.cholesky(Sigma)
-        L_inv = torch.inverse(L)
-        K_inv = L_inv.T @ L_inv
-        alpha = K_inv @ y
-        mu = K_s.T @ alpha
-        v = L_inv @ K_s
-        cov = K_ss - v.T @ v
-    elif Kinv_method == 'cholesky3':
+
+    if Kinv_method == 'cholesky':
         # recommended implementation, fastest so far
         L = torch.linalg.cholesky(Sigma)
         alpha = torch.cholesky_solve(y, L)
@@ -158,10 +151,6 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
         #v = L.inverse() @ K_s   # correct implementation
         v= torch.linalg.solve_triangular(L,K_s,upper=False)
         cov = K_ss - v.T @ v
-    elif Kinv_method == 'direct':
-        K_inv = torch.inverse(Sigma)
-        mu = K_s.T @ K_inv @ y
-        cov = K_ss - K_s.T @ K_inv @ K_s
     elif Kinv_method == 'conjugate':
         K_inv_y= conjugate_gradient(Sigma,y)
         mu = K_s.T @ K_inv_y
@@ -171,6 +160,7 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky3'):
         raise ValueError('Kinv_method should be either direct or cholesky')
     
     return mu, cov
+
 
 class DataNormalization(nn.Module):
     """
@@ -213,26 +203,27 @@ class DataNormalization(nn.Module):
             raise ValueError("Method must be 'standard' or 'min_max'")
 
     def fit(self, data, dataset_name):
+        device = data.device
         if self.mode == 0:
             if self.method == "standard":
-                mean_vals = torch.mean(data, dim=0, keepdim=True)
-                std_vals = torch.std(data, dim=0, keepdim=True)
+                mean_vals = torch.mean(data, dim=0, keepdim=True).to(device)
+                std_vals = torch.std(data, dim=0, keepdim=True).to(device)
                 self.params[dataset_name] = {'mean': nn.Parameter(mean_vals) if self.learnable else mean_vals,
                                              'std': nn.Parameter(std_vals) if self.learnable else std_vals}
             elif self.method == "min_max":
-                min_vals = torch.min(data, dim=0, keepdim=True).values
-                max_vals = torch.max(data, dim=0, keepdim=True).values
+                min_vals = torch.min(data, dim=0, keepdim=True).values.to(device)
+                max_vals = torch.max(data, dim=0, keepdim=True).values.to(device)
                 self.params[dataset_name] = {'min': nn.Parameter(min_vals) if self.learnable else min_vals,
                                              'max': nn.Parameter(max_vals) if self.learnable else max_vals}
         elif self.mode == 1:
             if self.method == "standard":
-                mean_vals = torch.mean(data)
-                std_vals = torch.std(data)
+                mean_vals = torch.mean(data).to(device)
+                std_vals = torch.std(data).to(device)
                 self.params[dataset_name] = {'mean': nn.Parameter(mean_vals) if self.learnable else mean_vals,
                                              'std': nn.Parameter(std_vals) if self.learnable else std_vals}
             elif self.method == "min_max":
-                min_vals = torch.min(data)
-                max_vals = torch.max(data)
+                min_vals = torch.min(data).to(device)
+                max_vals = torch.max(data).to(device)
                 self.params[dataset_name] = {'min': nn.Parameter(min_vals) if self.learnable else min_vals,
                                              'max': nn.Parameter(max_vals) if self.learnable else max_vals}
 
@@ -240,39 +231,48 @@ class DataNormalization(nn.Module):
         if dataset_name not in self.params:
             raise ValueError(f"No parameters found for dataset '{dataset_name}'. Please fit the data first.")
 
+        device = data.device
+
         if self.method == "standard":
-            mean_vals = self.params[dataset_name]['mean']
-            std_vals = self.params[dataset_name]['std']
+            mean_vals = self.params[dataset_name]['mean'].to(device)
+            std_vals = self.params[dataset_name]['std'].to(device)
             return (data - mean_vals.expand_as(data)) / (std_vals.expand_as(data) + self.eps)
         elif self.method == "min_max":
-            min_vals = self.params[dataset_name]['min']
-            max_vals = self.params[dataset_name]['max']
+            min_vals = self.params[dataset_name]['min'].to(device)
+            max_vals = self.params[dataset_name]['max'].to(device)
             return (data - min_vals.expand_as(data)) / ((max_vals - min_vals).expand_as(data) + self.eps)
 
     def denormalize(self, normalized_data, dataset_name):
         if dataset_name not in self.params:
             raise ValueError(f"No parameters found for dataset '{dataset_name}'. Please fit the data first.")
 
+        device = normalized_data.device
+
         if self.method == "standard":
-            mean_vals = self.params[dataset_name]['mean']
-            std_vals = self.params[dataset_name]['std']
+            mean_vals = self.params[dataset_name]['mean'].to(device)
+            std_vals = self.params[dataset_name]['std'].to(device)
             return normalized_data * (std_vals.expand_as(normalized_data) + self.eps) + mean_vals.expand_as(
                 normalized_data)
         elif self.method == "min_max":
-            min_vals = self.params[dataset_name]['min']
-            max_vals = self.params[dataset_name]['max']
+            min_vals = self.params[dataset_name]['min'].to(device)
+            max_vals = self.params[dataset_name]['max'].to(device)
             return normalized_data * ((max_vals - min_vals).expand_as(normalized_data) + self.eps) + min_vals.expand_as(
                 normalized_data)
+
     def denormalize_cov(self, normalized_cov, dataset_name):
         if dataset_name not in self.params:
             raise ValueError(f"No parameters found for dataset '{dataset_name}'. Please fit the data first.")
+
+        device = normalized_cov.device
+
         if self.method == "standard":
-            std_vals = self.params[dataset_name]['std']
+            std_vals = self.params[dataset_name]['std'].to(device)
             return normalized_cov * (std_vals.T @ std_vals + self.eps)
         elif self.method == "min_max":
-            min_vals = self.params[dataset_name]['min']
-            max_vals = self.params[dataset_name]['max']
+            min_vals = self.params[dataset_name]['min'].to(device)
+            max_vals = self.params[dataset_name]['max'].to(device)
             return normalized_cov * ((max_vals - min_vals).T @ (max_vals - min_vals) + self.eps)
+
 
 
 class Warp(nn.Module):

@@ -32,6 +32,8 @@ We do not have a pip package yet. You can install it by cloning the repository a
     - 02_svgp, A demo for implementing mini-batch gradient descent on SVGP allows training a GP with 10k inputs in 2 seconds. 
     - 02_svgp_GPTutorial, A detailed tutorial for Stochastic Variational Interference GP model that can allow mini-batch training. [Original paper](https://arxiv.org/abs/1411.2005)
 - **Debug_NaNError_FAQ:** Frequently asked questions for GP model. It contains some techniques to solve NaN problem in GP model. More details can be found in the README file in the Debug_NaNError_FAQ folder.
+- **Bayesian_Optimization:** This folder contains useful tools for Bayesian optimization, including several widely used acquisition functions. It also includes a demonstration of Bayesian optimization using a GP model.
+
 
 
 

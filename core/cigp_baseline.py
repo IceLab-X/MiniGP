@@ -4,12 +4,13 @@ from core.kernel import ARDKernel,NeuralKernel,PeriodicKernel
 import numpy as np
 import matplotlib.pyplot as plt
 from data_sample import generate_example_data as data
+import core.GP_CommonCalculation as GP
 JITTER= 1e-6
 EPS= 1e-10
 PI= 3.1415
 torch.set_default_dtype(torch.float64)
 class cigp(nn.Module):
-    def __init__(self, X, Y,kernel=ARDKernel,normal_y_mode=0):
+    def __init__(self, X, Y,kernel=ARDKernel,normal_y_mode=0,K_inv_method='cholesky'):
         super(cigp, self).__init__()
 
         #normalize X independently for each dimension
@@ -30,46 +31,30 @@ class cigp(nn.Module):
 
         # GP hyperparameters
         self.log_beta = nn.Parameter(torch.ones(1) * -4)   # a large noise by default. Smaller value makes larger noise variance.
-
-
+        self.K_inv_method=K_inv_method
+        self.device=self.X.device
     def forward(self, Xte):
         n_test = Xte.size(0)
         Xte = (Xte - self.Xmean.expand_as(Xte)) / self.Xstd.expand_as(Xte)
 
-        Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(self.X.size(0)) \
-                + JITTER * torch.eye(self.X.size(0))
+        Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(self.X.size(0), device=self.device) \
+                + JITTER * torch.eye(self.X.size(0),device=self.device)
 
-        kx = self.kernel(self.X, Xte)
-        L = torch.linalg.cholesky(Sigma)
-        LinvKx = torch.linalg.solve_triangular(L, kx, upper=False)
+        k_xt = self.kernel(self.X, Xte)
+        k_tt = self.kernel(Xte, Xte)
 
-        # Option 1
-        mean = kx.t() @ torch.cholesky_solve(self.Y, L)
-
-        var_diag = self.kernel(Xte, Xte).diag().view(-1, 1) \
-                   - (LinvKx ** 2).sum(dim=0).view(-1, 1)
-
-        # Add the noise uncertainty
-        var_diag = var_diag + self.log_beta.exp().pow(-1)
-
+        mean,var=GP.conditional_Gaussian(self.Y,Sigma,k_xt,k_tt,Kinv_method=self.K_inv_method)
+        var_diag=var.diag().view(-1,1)+ self.log_beta.exp().pow(-1)
         # De-normalized
         mean = mean * self.Ystd.expand_as(mean) + self.Ymean.expand_as(mean)
         var_diag = var_diag.expand_as(mean) * self.Ystd ** 2
-
-        return mean, var_diag
+        return mean,var_diag
 
     def negative_log_likelihood(self):
-        y_num, y_dimension = self.Y.shape
         Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(
-            self.X.size(0)) + JITTER * torch.eye(self.X.size(0))
+            self.X.size(0),device=self.device) + JITTER * torch.eye(self.X.size(0),device=self.device)
 
-        L = torch.linalg.cholesky(Sigma)
-
-        Gamma = torch.linalg.solve_triangular(L,self.Y, upper=False)
-
-        nll =  0.5 * (Gamma ** 2).sum() +  L.diag().log().sum() * y_dimension  \
-            + 0.5 * y_num * torch.log(2 * torch.tensor(PI)) * y_dimension
-        return nll
+        return -GP.Gaussian_log_likelihood(self.Y, Sigma, Kinv_method=self.K_inv_method)
 
     def train_adam(self, niteration=10, lr=0.1):
         # adam optimizer
@@ -92,7 +77,7 @@ class cigp(nn.Module):
 if __name__ == "__main__":
     print('testing')
     print(torch.__version__)
-
+    torch.manual_seed(seed=2)
     # single output test 1
     xte = torch.linspace(0, 6, 100).view(-1, 1)
     yte = torch.sin(xte) + 10
