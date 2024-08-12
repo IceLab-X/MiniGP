@@ -107,7 +107,7 @@ import numpy as np
 # filename = f'results_{timestamp}.csv'
 
 # Save all results to CSV
-filename = 'results2.csv'
+filename = 'results1.csv'
 with open(filename, 'w', newline='') as csvfile:
     fieldnames = ['Model', 'Training Size', 'Batch Size', 'Number of Inducing Points', 'Iteration',
                   'Training Time per Iteration (MilliSeconds)', 'MSE']
@@ -119,20 +119,21 @@ with open(filename, 'w', newline='') as csvfile:
 # Plotting the results
 # Read the CSV file
 df = pd.read_csv(filename)
+markers = {'CIGP': 'o', 'VSGP': '^', 'SVIGP': 's', 'ParametricGP': 'd'}
 
 plt.figure(figsize=(10, 6))
 for model_name in df['Model'].unique():
     model_df = df[df['Model'] == model_name]
-    plt.plot(model_df['Number of Inducing Points'], model_df['MSE'], label=f'{model_name}')
+    plt.plot(model_df['Training Size'], model_df['MSE'], marker=markers[model_name], linewidth=2.5, label=f'{model_name}')
 
-plt.xlabel('Number of Inducing Points', fontsize=16)
-plt.xticks(sorted(df['Number of Inducing Points'].unique()), fontsize=14)
+plt.xlabel('Training Size', fontsize=18)
+plt.xticks(sorted(df['Training Size'].unique()), fontsize=16)
 plt.ylim(0, 0.2)
-plt.yticks([i * 0.02 for i in range(11)], fontsize=14)
-plt.ylabel('MSE', fontsize=16)
-plt.title('Model Comparison -- Accuracy', fontsize=18)
-plt.legend(fontsize=14)
-plt.savefig('Model_comparison Accuracy2.PNG')
+plt.yticks([i * 0.02 for i in range(11)], fontsize=16)
+plt.ylabel('MSE', fontsize=18)
+plt.title('Model Comparison -- Accuracy', fontsize=20)
+plt.legend(fontsize=16)
+plt.savefig('Model_comparison Accuracy.PNG')
 plt.show()
 
 # Plot 2: Training Time per Iteration vs. Training Size
@@ -141,13 +142,12 @@ for model_name in df['Model'].unique():
     model_df = df[df['Model'] == model_name]
     Training_Time = model_df['Training Time per Iteration (MilliSeconds)']
     log_Training_Time = np.log(Training_Time)
-    plt.plot(model_df['Number of Inducing Points'], log_Training_Time, label=f'{model_name}')
+    plt.plot(model_df['Training Size'], log_Training_Time, marker=markers[model_name], linewidth=2.5, label=f'{model_name}')
 
-plt.xlabel('Number of Inducing Points', fontsize=16)
-plt.xticks(sorted(df['Number of Inducing Points'].unique()), fontsize=14)
-plt.ylabel('Average Training Time per Iteration (log, ms)', fontsize=16)
-plt.title('Model Comparison -- Speed', fontsize=18)
-plt.legend(fontsize=14)
-# Save the plot as an image file
-plt.savefig('Model_comparison Speed2.PNG')
+plt.xlabel('Training Size', fontsize=18)
+plt.xticks(sorted(df['Training Size'].unique()), fontsize=16)
+plt.ylabel('Average Training Time per Iteration (log, ms)', fontsize=18)
+plt.title('Model Comparison -- Speed', fontsize=20)
+plt.legend(fontsize=16)
+plt.savefig('Model_comparison Speed.PNG')
 plt.show()
