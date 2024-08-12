@@ -2,8 +2,8 @@
 
 - **Model_comparison.py:** A Python script that compares the performance of different GP models on various synthetic datasets, including periodic, warped, and polynomial. The default models are set as autoGP and its base model vsgp.
 
-  <img src="https://github.com/IceLab-X/Mini-GP/blob/051c6a3a60b955ffdea8a4fd72606353c21bfd49/core/Model_comparison&Regression_test/Model_comparison_autoGP.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
-  <img src="https://github.com/IceLab-X/Mini-GP/blob/a669f61a364dccbea7e632db07ffb749e3db3713/core/Model_comparison&Regression_test/Model_comparison_warped.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
+  <img src="https://github.com/IceLab-X/Mini-GP/blob/96333d228c9034732ef95968daf40fba36a44ad1/core/Model_comparison&Regression_test/Model_comparison_autoGP.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
+  <img src="https://github.com/IceLab-X/Mini-GP/blob/96333d228c9034732ef95968daf40fba36a44ad1/core/Model_comparison&Regression_test/Model_comparison_warped.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
 
 - **Regression_test.py:** A Python script that tests the accuracy and training speed on different sizes of training sets. The results are stored in result1.csv and result2.csv.
 
