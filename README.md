@@ -7,7 +7,7 @@ Despite that there are many successful GP libraries, such as GPy, GPflow, and Py
 We do not have a pip package yet. You can install it by cloning the repository and rune the code for your own purpose. At this stage we think it is better to keep it simple and customizable. It servers as rather demo code than a library, with some useful functions to make computation easier.
 
 ## Structure
-- **core:** Contains all the core functions for GP. It is the backbone of the library. Additionally, there are some Python scripts for GP models that are easy and quick to use for research and experiments. More details can be found in the README file in the core folder.
+- **core:** This folder contains all the core functions for Gaussian Processes (GP). It serves as the backbone of the library. Additionally, it includes Python scripts for GP models that are designed to be easy and quick to use for research and experimentation. The folder also contains a model comparison script and the corresponding results. More details can be found in the README file within the core folder.
 
 <!-- - Self-contained GP models and signiture GPTutorials for educational purposes.
   Several GP models that are self-contained and practical to use (we use them in many of our research projects).  -->
