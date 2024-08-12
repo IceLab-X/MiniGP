@@ -75,10 +75,10 @@ class DataGenerator:
 torch.manual_seed(1)
 np.random.seed(0)
 
-data_gen = DataGenerator(n_datasets=20, n_samples=300, x_range=20, x_dim=1)
-data_gen.generate_polynomial_data()
+data_gen = DataGenerator(n_datasets=60, n_samples=500, x_range=20, x_dim=1)
+#data_gen.generate_polynomial_data()
 data_gen.generate_warped_data()
-data_gen.generate_periodic_data()
+#data_gen.generate_periodic_data()
 #data_gen.plot_datasets(num_plots=5)
 
 model1_better_count = 0
@@ -100,7 +100,7 @@ for X, y in data_gen.datasets:
     y_test = torch.tensor(y_test, dtype=torch.float64).view(-1, 1)
 
     # Model 1: autoGP
-    model1 = autoGP(X_train, y_train, normal_method="standard", kernel=ARDKernel, inputwarp=False, deepkernel=False)
+    model1 = autoGP(X_train, y_train, normal_method="standard", kernel=ARDKernel, inputwarp=True, deepkernel=False)
     model1.train_auto()
     y_pred_model1, _ = model1.forward(X_test)
     r2_model1 = r2_score(y_test.detach(), y_pred_model1.detach())
@@ -155,18 +155,18 @@ print(f'vsgp failed {fail_model2_count} times.')
 
 # Plot the R² scores
 plt.figure(figsize=(10, 6))
-plt.plot(range(1, len(r2_scores_model1) + 1), r2_scores_model1, '^-', label='autoGP R²')
-plt.plot(range(1, len(r2_scores_model2) + 1), r2_scores_model2, 'o-', label='vsgp R²')
-plt.xlabel('Dataset Number', fontsize=16)
-plt.ylabel('R² Score', fontsize=16)
-plt.title('R² Scores of autoGP and vsgp across Different Datasets', fontsize=18)
-plt.legend(fontsize=14)
+plt.plot(range(1, len(r2_scores_model1) + 1), r2_scores_model1, '^-', label='autoGP R²', linewidth=2)
+plt.plot(range(1, len(r2_scores_model2) + 1), r2_scores_model2, 'o-', label='vsgp R²', linewidth=2)
+plt.xlabel('Dataset Number', fontsize=18)
+plt.ylabel('R² Score', fontsize=18)
+plt.title('R² Scores of autoGP and vsgp across Warped Datasets', fontsize=20)
+plt.legend(fontsize=16)
 
 # Optional: Increase tick label size
-plt.xticks(fontsize=14)
-plt.yticks(fontsize=14)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
 
 
 # Save the plot as an image file
-plt.savefig('Model_comparison_autoGP.png')
+plt.savefig('Model_comparison_warped.png')
 plt.show()
