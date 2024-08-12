@@ -19,7 +19,7 @@ torch.manual_seed(4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Generate data
-training_sizes = [10,100]#,1000,2000,3000] # Included 10 for calculation
+training_sizes = [10,100,1000,2000,3000] # Included 10 for calculation
 learning_rate = 0.1
 num_epochs = [200,200,800,800]
 
@@ -101,12 +101,13 @@ for training_size in training_sizes:
 from datetime import datetime
 import pandas as pd
 import numpy as np
+
 ## Generate a unique filename with a timestamp, this will save all results to a new CSV file without overwriting the previous ones
 # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 # filename = f'results_{timestamp}.csv'
 
 # Save all results to CSV
-filename = 'results.csv'
+filename = 'results2.csv'
 with open(filename, 'w', newline='') as csvfile:
     fieldnames = ['Model', 'Training Size', 'Batch Size', 'Number of Inducing Points', 'Iteration',
                   'Training Time per Iteration (MilliSeconds)', 'MSE']
@@ -119,19 +120,19 @@ with open(filename, 'w', newline='') as csvfile:
 # Read the CSV file
 df = pd.read_csv(filename)
 
-# Plot 1: Training Loss over Iterations
 plt.figure(figsize=(10, 6))
 for model_name in df['Model'].unique():
     model_df = df[df['Model'] == model_name]
-    plt.plot(model_df['Training Size'], model_df['MSE'], label=f'{model_name}')
+    plt.plot(model_df['Number of Inducing Points'], model_df['MSE'], label=f'{model_name}')
 
-plt.xlabel('Training Size')
-plt.xticks(sorted(df['Training Size'].unique()))
+plt.xlabel('Number of Inducing Points', fontsize=16)
+plt.xticks(sorted(df['Number of Inducing Points'].unique()), fontsize=14)
 plt.ylim(0, 0.2)
-plt.yticks([i * 0.02 for i in range(11)])
-plt.ylabel('MSE')
-plt.title('Model Comparison -- Accuracy')
-plt.legend()
+plt.yticks([i * 0.02 for i in range(11)], fontsize=14)
+plt.ylabel('MSE', fontsize=16)
+plt.title('Model Comparison -- Accuracy', fontsize=18)
+plt.legend(fontsize=14)
+plt.savefig('Model_comparison Accuracy2.PNG')
 plt.show()
 
 # Plot 2: Training Time per Iteration vs. Training Size
@@ -140,11 +141,13 @@ for model_name in df['Model'].unique():
     model_df = df[df['Model'] == model_name]
     Training_Time = model_df['Training Time per Iteration (MilliSeconds)']
     log_Training_Time = np.log(Training_Time)
-    plt.plot(model_df['Training Size'], log_Training_Time, label=f'{model_name}')
+    plt.plot(model_df['Number of Inducing Points'], log_Training_Time, label=f'{model_name}')
 
-plt.xlabel('Training Size')
-plt.xticks(sorted(df['Training Size'].unique()))
-plt.ylabel('log Average Training Time per Iteration (MilliSeconds)')
-plt.title('Model Comparison -- Speed')
-plt.legend()
+plt.xlabel('Number of Inducing Points', fontsize=16)
+plt.xticks(sorted(df['Number of Inducing Points'].unique()), fontsize=14)
+plt.ylabel('Average Training Time per Iteration (log, ms)', fontsize=16)
+plt.title('Model Comparison -- Speed', fontsize=18)
+plt.legend(fontsize=14)
+# Save the plot as an image file
+plt.savefig('Model_comparison Speed2.PNG')
 plt.show()
