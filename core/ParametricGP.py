@@ -70,12 +70,17 @@ class ParametricGP(nn.Module):
         return y_pred
 
     def forward(self, xte):
-        xte_normalized=self.normalizer.normalize(xte,'x')
-        y_pred_normalized = self.predict(xte_normalized)
-        y_var=self.log_beta.exp().pow(-1)
-        y_pred=self.normalizer.denormalize(y_pred_normalized,'y')
-        y_var=self.normalizer.denormalize_cov(y_var,'y')
-        return y_pred, y_var # y_var is a constant, assuming variance is the same for every point.
+        xte_normalized = self.normalizer.normalize(xte, 'x')
+        K_mm = self.kernel(self.xm, self.xm) + self.jitter * torch.eye(self.xm.size(0), dtype=torch.float64).to(
+            self.device)
+        K_tm = self.kernel(xte_normalized, self.xm)
+        K_tt_diag = self.kernel(xte_normalized, xte_normalized).diag()
+        y_pred_normalized = K_tm @ cg(K_mm, self.qu_mean)
+        y_var = K_tt_diag - (K_tm @ cg(K_mm, K_tm.t())).diag() + self.log_beta.exp().pow(-1)
+        y_pred = self.normalizer.denormalize(y_pred_normalized, 'y')
+        y_var = self.normalizer.denormalize_cov(y_var, 'y')
+        y_var = y_var.view(-1, 1)
+        return y_pred, y_var
 
     def loss_function(self,x_batch,y_batch):
         y_pred= self.predict(x_batch)
