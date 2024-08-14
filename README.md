@@ -1,5 +1,5 @@
 # MiniGP
-MiniGP is a minimalistic Gaussian Process (GP) library. It is designed to be simple and easy to understand. 
+MiniGP is a minimalistic Gaussian Process (GP) library focused on regression tasks. It is designed to be simple and easy to understand. 
 
 Despite that there are many successful GP libraries, such as GPy, GPflow, and Pyro, they are often too complex for beginners to understand. Things get worse when the user wants to customize the model. MiniGP is designed to be simple and easy to understand. It is a great tool for educational purposes. We also try to make it easy for anyone to use without a lot of background knowledge of GP.
 
@@ -35,7 +35,24 @@ We do not have a pip package yet. You can install it by cloning the repository a
 - **Bayesian_Optimization:** This folder contains useful tools for Bayesian optimization
     - acq: A Python scripy including several widely used acquisition functions. 
     - BO_demo: A demonstration of the process of Bayesian optimization.
+- **assets:** This folder contains the python scripts for the model comparison and regression test. As well as the result in both .csv and .png format. For more details, please refer to the README.md in the folder.
 
+  - **Model_comparison.py:** A Python script that compares the performance of different GP models on various synthetic datasets, including periodic, warped, and polynomial. The default models are set as autoGP and its base model vsgp.
+
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison_autoGP.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison_warped.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
+
+  - **Regression_test.py:** A Python script that tests the accuracy and training speed on different sizes of training sets. The results are stored in result1.csv and result2.csv.
+
+  - **result1.csv:** The result of the regression test for different training set sizes.
+
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Accuracy.PNG" alt="Model Comparison -- Accuracy" width="400"/>
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Speed.PNG" alt="Model Comparison -- Speed" width="400"/>
+
+  - **result2.csv:** The result of the regression test for different numbers of inducing points.
+
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Accuracy2.PNG" alt="Model Comparison -- Accuracy 2" width="400"/>
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Speed2.PNG" alt="Model Comparison -- Speed 2" width="400"/>
 
     
 ## Contribution

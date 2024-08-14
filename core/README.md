@@ -18,8 +18,5 @@ This README provides an overview of the folder's structure, key files, and instr
   - inputWarpedGP.py: A GP model that uses input warping to model the data. It is suitable for users who want to model non-stationary data. 
   - gplvm.py: A GP model that uses latent variable to model the data. It is suitable for non-linear dimension reduction. [Original paper](https://papers.nips.cc/paper/2009/file/7c4d21b4b9f8f2b8d1e3e7d2e2e5b7f8-Paper.pdf)
 
-## Model Comparison and Regression test
-This folder contains the python scripts for the model comparison and regression test. As well as the result in both .csv and .png format. For more details, please refer to the README.md in the folder.
-
 ### To understand how to use these callable classes, please refer to the test cases provided at the end of each model.py file.
 ```
