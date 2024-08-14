@@ -1,5 +1,5 @@
-#Author: Zidong Chen
-#Date: 2024-06-22
+# Author: Zidong Chen
+# Date: 2024-06-22
 # This is the implementation of the variational sparse Gaussian process (VSGP) model.
 # More details can be found in the paper "Variational Learning of Inducing Variables in Sparse Gaussian Processes" by Titsias (2009).
 
@@ -19,6 +19,7 @@ EPS = 1e-10
 PI = 3.1415
 torch.set_default_dtype(torch.float64)
 
+
 class vsgp(nn.Module):
     def __init__(self, X, Y, num_inducing):
         super(vsgp, self).__init__()
@@ -34,7 +35,7 @@ class vsgp(nn.Module):
         self.device = self.X.device
 
         # Inducing points
-        input_dim=self.X.size(1)
+        input_dim = self.X.size(1)
         self.kernel = ARDKernel(input_dim)
         self.xm = nn.Parameter(torch.rand((num_inducing, input_dim)))  # Inducing points
 
@@ -48,7 +49,7 @@ class vsgp(nn.Module):
         A = torch.linalg.solve_triangular(L, K_mn, upper=False)
         A = A * torch.sqrt(self.log_beta.exp())
         AAT = A @ A.t()
-        B = AAT + (1+JITTER) * torch.eye(self.xm.size(0),device=self.device)
+        B = AAT + (1 + JITTER) * torch.eye(self.xm.size(0), device=self.device)
         LB = torch.linalg.cholesky(B)
 
         c = torch.linalg.solve_triangular(LB, A @ self.Y, upper=False)
@@ -64,7 +65,7 @@ class vsgp(nn.Module):
 
     def optimal_inducing_point(self):
         """Compute optimal inducing points mean and covariance."""
-        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0),device=self.device)
+        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), device=self.device)
         L = torch.linalg.cholesky(K_mm)
         L_inv = torch.inverse(L)
         K_mm_inv = L_inv.t() @ L_inv
@@ -79,7 +80,7 @@ class vsgp(nn.Module):
 
     def forward(self, Xte):
         """Compute mean and variance for posterior distribution."""
-        Xte = self.data.normalize(Xte,'x')
+        Xte = self.data.normalize(Xte, 'x')
 
         K_tt = self.kernel(Xte, Xte)
         K_tm = self.kernel(Xte, self.xm)
@@ -103,11 +104,12 @@ class vsgp(nn.Module):
             loss = self.negative_log_likelihood()
             loss.backward()
             optimizer.step()
-            #print('iter', i, ' nll:', loss.item())
+            # print('iter', i, ' nll:', loss.item())
         print('done2')
-    def train_lbfgs(self, max_iter=20,lr=0.3):
+
+    def train_lbfgs(self, max_iter=20, lr=0.3):
         """Train model using LBFGS optimizer."""
-        optimizer = torch.optim.LBFGS(self.parameters(), max_iter=max_iter,lr=lr)
+        optimizer = torch.optim.LBFGS(self.parameters(), max_iter=max_iter, lr=lr)
 
         def closure():
             optimizer.zero_grad()
@@ -119,18 +121,20 @@ class vsgp(nn.Module):
 
         optimizer.step(closure)
 
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import data_sample.generate_example_data as data
+
     print('testing')
-    device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     xtr, ytr, xte, yte = data.generate(2000, 500, seed=2)
     xtr = xtr.to(device)
     ytr = ytr.to(device)
     xte = xte.to(device)
     yte = yte.to(device)
 
-    #print(ytr)
+    # print(ytr)
     GPmodel = vsgp(xtr, ytr, num_inducing=200).to(device)
     optimizer = torch.optim.Adam(GPmodel.parameters(), lr=0.1)
 
@@ -143,19 +147,18 @@ if __name__ == '__main__':
         loss = GPmodel.negative_log_likelihood()
         loss.backward()
         optimizer.step()
-        end_time= time.time()
+        end_time = time.time()
         iteration_times.append(end_time - start_time)
 
     average_iteration_time = sum(iteration_times) / len(iteration_times)
 
-
     with torch.no_grad():
         ypred, ypred_var = GPmodel.forward(xte)
-        mse= torch.mean((yte-ypred)**2)
+        mse = torch.mean((yte - ypred) ** 2)
 
         R_square = 1 - torch.sum((yte - ypred) ** 2) / torch.sum((yte - yte.mean()) ** 2)
         print(average_iteration_time)
-        print(mse,R_square)
+        print(mse, R_square)
         plt.plot(xte.cpu().numpy(), yte.cpu().numpy(), 'r.')
         plt.plot(xte.cpu().numpy(), ypred.cpu().numpy(), 'b.')
         plt.show()

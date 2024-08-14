@@ -1,58 +1,64 @@
 import torch
 import torch.nn as nn
-from core.kernel import ARDKernel,NeuralKernel,PeriodicKernel
+from core.kernel import ARDKernel, NeuralKernel, PeriodicKernel, MaternKernel, PolynomialKernel
 import numpy as np
 import matplotlib.pyplot as plt
 from data_sample import generate_example_data as data
 import core.GP_CommonCalculation as GP
-JITTER= 1e-6
-EPS= 1e-10
-PI= 3.1415
+
+JITTER = 1e-6
+EPS = 1e-10
+PI = 3.1415
 torch.set_default_dtype(torch.float64)
+
+
 class cigp(nn.Module):
-    def __init__(self, X, Y,kernel=ARDKernel,normal_y_mode=0,K_inv_method='cholesky'):
+    def __init__(self, X, Y, kernel=ARDKernel(1), normal_y_mode=0, K_inv_method='cholesky'):
         super(cigp, self).__init__()
 
-        #normalize X independently for each dimension
+        # normalize X independently for each dimension
         self.Xmean = X.mean(0)
         self.Xstd = X.std(0)
         self.X = (X - self.Xmean.expand_as(X)) / (self.Xstd.expand_as(X) + EPS)
-        self.kernel=kernel(input_dim=X.size(1))
+        self.kernel = kernel
         if normal_y_mode == 0:
             # normalize y all together
             self.Ymean = Y.mean()
             self.Ystd = Y.std()
             self.Y = (Y - self.Ymean.expand_as(Y)) / (self.Ystd.expand_as(Y) + EPS)
         elif normal_y_mode == 1:
-        # option 2: normalize y by each dimension
+            # option 2: normalize y by each dimension
             self.Ymean = Y.mean(0)
             self.Ystd = Y.std(0)
             self.Y = (Y - self.Ymean.expand_as(Y)) / (self.Ystd.expand_as(Y) + EPS)
 
         # GP hyperparameters
-        self.log_beta = nn.Parameter(torch.ones(1) * -4)   # a large noise by default. Smaller value makes larger noise variance.
-        self.K_inv_method=K_inv_method
-        self.device=self.X.device
+        self.log_beta = nn.Parameter(
+            torch.ones(1) * -4)  # a large noise by default. Smaller value makes larger noise variance.
+        self.K_inv_method = K_inv_method
+        self.device = self.X.device
+
     def forward(self, Xte):
         n_test = Xte.size(0)
         Xte = (Xte - self.Xmean.expand_as(Xte)) / self.Xstd.expand_as(Xte)
 
-        Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(self.X.size(0), device=self.device) \
-                + JITTER * torch.eye(self.X.size(0),device=self.device)
+        Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(self.X.size(0),
+                                                                                      device=self.device) \
+                + JITTER * torch.eye(self.X.size(0), device=self.device)
 
         k_xt = self.kernel(self.X, Xte)
         k_tt = self.kernel(Xte, Xte)
 
-        mean,var=GP.conditional_Gaussian(self.Y,Sigma,k_xt,k_tt,Kinv_method=self.K_inv_method)
-        var_diag=var.diag().view(-1,1)+ self.log_beta.exp().pow(-1)
+        mean, var = GP.conditional_Gaussian(self.Y, Sigma, k_xt, k_tt, Kinv_method=self.K_inv_method)
+        var_diag = var.diag().view(-1, 1) + self.log_beta.exp().pow(-1)
         # De-normalized
         mean = mean * self.Ystd.expand_as(mean) + self.Ymean.expand_as(mean)
         var_diag = var_diag.expand_as(mean) * self.Ystd ** 2
-        return mean,var_diag
+        return mean, var_diag
 
     def negative_log_likelihood(self):
         Sigma = self.kernel(self.X, self.X) + self.log_beta.exp().pow(-1) * torch.eye(
-            self.X.size(0),device=self.device) + JITTER * torch.eye(self.X.size(0),device=self.device)
+            self.X.size(0), device=self.device) + JITTER * torch.eye(self.X.size(0), device=self.device)
 
         return -GP.Gaussian_log_likelihood(self.Y, Sigma, Kinv_method=self.K_inv_method)
 
@@ -85,7 +91,7 @@ if __name__ == "__main__":
     xtr = torch.rand(16, 1) * 6
     ytr = torch.sin(xtr) + torch.randn(16, 1) * 0.5 + 10
 
-    model = cigp(xtr, ytr)
+    model = cigp(xtr, ytr, kernel=PolynomialKernel(1, degree=3))
     model.train_adam(200, lr=0.1)
     # model.train_bfgs(50, lr=0.1)
 
@@ -104,7 +110,7 @@ if __name__ == "__main__":
     ytr = torch.sin(xtr.sum(1)).view(-1, 1) + torch.randn(32, 1) * 0.5 + 10
 
     model = cigp(xtr, ytr)
-    model.train_adam(300, lr=0.1)
+    model.train_adam(200, lr=0.1)
     # model.train_bfgs(50, lr=0.01)
 
     with torch.no_grad():
@@ -129,7 +135,7 @@ if __name__ == "__main__":
                         xtr.tanh()]) + torch.randn(32, 3) * 0.2
 
     model = cigp(xtr, ytr, normal_y_mode=1)
-    model.train_adam(100, lr=0.1)
+    model.train_adam(200, lr=0.1)
     # model.train_bfgs(50, lr=0.001)
 
     with torch.no_grad():
@@ -155,4 +161,3 @@ if __name__ == "__main__":
     plt.show()
 
 # %%
-

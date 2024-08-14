@@ -56,7 +56,7 @@ def generate_complex_data(num=400, seed=None):
     yte = y_combined[test_indices].view(-1,1)
 
     return xtr, ytr, xte, yte,x_combined, y_combined
-def plot(xtr, ytr,x_combined, y_combined,figsize=(10, 6)):
+def plot(xtr, ytr,x_combined, y_combined,figsize=(10, 6),show=True):
     if xtr is None or ytr is None or x_combined is None or y_combined is None:
         print("Data not generated. Please call generate_data() first.")
         return
@@ -66,7 +66,8 @@ def plot(xtr, ytr,x_combined, y_combined,figsize=(10, 6)):
     plt.plot(xtr.numpy(), ytr.numpy(), 'b+', label='Training data')
     plt.plot(x_combined.numpy(), y_combined.numpy(), 'r-', alpha=0.5, label='Latent function')
     plt.legend()
-    plt.show()
+    if show:
+        plt.show()
 
 if __name__ == "__main__":
     print('testing')

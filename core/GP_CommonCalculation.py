@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-
 EPS = 1e-9
 
 
@@ -49,12 +48,10 @@ def conjugate_gradient(A, b, x0=None, tol=1e-1, max_iter=1000):
         p = r + (rsnew / rsold) * p
         rsold = rsnew
 
-        #if i % 10 == 0:  # Print diagnostics every 10 iterations
-            #print(f"Iteration {i}: Residual norm {torch.sqrt(rsnew):.6e}")
+        # if i % 10 == 0:  # Print diagnostics every 10 iterations
+        # print(f"Iteration {i}: Residual norm {torch.sqrt(rsnew):.6e}")
 
     return x
-
-
 
 
 def compute_inverse_and_log_det_positive_eigen(matrix):
@@ -75,14 +72,15 @@ def compute_inverse_and_log_det_positive_eigen(matrix):
     # print(eigenvalues)
     positive_indices = eigenvalues > 1e-4
     removed_count = torch.sum(~positive_indices).item()
-    #if removed_count > 0:
-        #print(f"Removed {removed_count} small or non-positive eigenvalue(s).")
+    # if removed_count > 0:
+    # print(f"Removed {removed_count} small or non-positive eigenvalue(s).")
     eigenvalues = eigenvalues[positive_indices]
     eigenvectors = eigenvectors[:, positive_indices]
     inv_eigenvalues = torch.diag(1.0 / eigenvalues)
     inverse_matrix = eigenvectors @ inv_eigenvalues @ eigenvectors.T
     log_det_K = torch.sum(torch.log(eigenvalues))
     return inverse_matrix, log_det_K
+
 
 # compute the log likelihood of a normal distribution
 def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky'):
@@ -102,7 +100,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky'):
     Raises:
         ValueError: If Kinv_method is not 'direct' or 'cholesky'.
     """
-    
+
     # assert if the correct dimension
     assert len(y.shape) == 2 and len(cov.shape) == 2, "y, mean, cov should be 2D tensors"
 
@@ -111,17 +109,18 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky'):
         L = torch.linalg.cholesky(cov)
         # return -0.5 * (y_use.T @ torch.cholesky_solve(y_use, L) + L.diag().log().sum() + len(x_train) * np.log(2 * np.pi))
         if y.shape[1] > 1:
-            Warning('y_use.shape[1] > 1, will treat each column as a sample (for the joint normal distribution) and sum the log-likelihood')
+            Warning(
+                'y_use.shape[1] > 1, will treat each column as a sample (for the joint normal distribution) and sum the log-likelihood')
             # 
             # (Alpha ** 2).sum() = (Alpha @ Alpha^T).diag().sum() = \sum_i (Alpha @ Alpha^T)_{ii}
             # 
             y_dim = y.shape[1]
             log_det_K = 2 * torch.sum(torch.log(torch.diag(L)))
-            gamma = torch.linalg.solve_triangular(L, y, upper = False)
-            return - 0.5 * ( (gamma ** 2).sum() + log_det_K * y_dim + len(y) * y_dim * np.log(2 * np.pi) )
+            gamma = torch.linalg.solve_triangular(L, y, upper=False)
+            return - 0.5 * ((gamma ** 2).sum() + log_det_K * y_dim + len(y) * y_dim * np.log(2 * np.pi))
         else:
-            gamma = torch.linalg.solve_triangular(L,y,upper=False)
-            return -0.5 * (gamma.T @ gamma + 2*L.diag().log().sum() + len(y) * np.log(2 * np.pi))
+            gamma = torch.linalg.solve_triangular(L, y, upper=False)
+            return -0.5 * (gamma.T @ gamma + 2 * L.diag().log().sum() + len(y) * np.log(2 * np.pi))
 
     elif Kinv_method == 'torch_distribution_MN1':
         L = torch.linalg.cholesky(cov)
@@ -132,13 +131,15 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky'):
         K_inv, log_det_K = compute_inverse_and_log_det_positive_eigen(cov)
         return -0.5 * (y.T @ K_inv @ y + log_det_K + len(y) * np.log(2 * np.pi))
     elif Kinv_method == 'conjugate':
-        L= torch.linalg.cholesky(cov)
-        Sigma_inv_y = conjugate_gradient(cov,y)
+        L = torch.linalg.cholesky(cov)
+        Sigma_inv_y = conjugate_gradient(cov, y)
 
-        return -0.5 * (torch.matmul(y.t(), Sigma_inv_y) - 0.5*len(y) * torch.log(2 * torch.tensor(torch.pi))) -L.diag().log().sum()
+        return -0.5 * (torch.matmul(y.t(), Sigma_inv_y) - 0.5 * len(y) * torch.log(
+            2 * torch.tensor(torch.pi))) - L.diag().log().sum()
     else:
         raise ValueError('Kinv_method should be either direct or cholesky')
-    
+
+
 def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky'):
     # Sigma = Sigma + torch.eye(len(Sigma)) * EPS
 
@@ -148,17 +149,17 @@ def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky'):
         alpha = torch.cholesky_solve(y, L)
         mu = K_s.T @ alpha
         # v = torch.cholesky_solve(K_s, L)    # wrong implementation
-        #v = L.inverse() @ K_s   # correct implementation
-        v= torch.linalg.solve_triangular(L,K_s,upper=False)
+        # v = L.inverse() @ K_s   # correct implementation
+        v = torch.linalg.solve_triangular(L, K_s, upper=False)
         cov = K_ss - v.T @ v
     elif Kinv_method == 'conjugate':
-        K_inv_y= conjugate_gradient(Sigma,y)
+        K_inv_y = conjugate_gradient(Sigma, y)
         mu = K_s.T @ K_inv_y
-        K_inv_K_s = conjugate_gradient(Sigma,K_s)
+        K_inv_K_s = conjugate_gradient(Sigma, K_s)
         cov = K_ss - K_s.T @ K_inv_K_s
     else:
         raise ValueError('Kinv_method should be either direct or cholesky')
-    
+
     return mu, cov
 
 
@@ -191,6 +192,7 @@ class DataNormalization(nn.Module):
     denormalize_cov(normalized_cov, dataset_name)
         Denormalizes the covariance matrix using the stored normalization parameters for the specified dataset.
     """
+
     def __init__(self, method="standard", mode=0, learnable=False, eps=1e-8):
         super(DataNormalization, self).__init__()
         self.method = method
@@ -274,7 +276,6 @@ class DataNormalization(nn.Module):
             return normalized_cov * ((max_vals - min_vals).T @ (max_vals - min_vals) + self.eps)
 
 
-
 class Warp(nn.Module):
     """
         A class to apply and invert transformations using either the 'log' or 'kumar' method.
@@ -288,6 +289,7 @@ class Warp(nn.Module):
             b_lower_bound (float): Lower bound for parameter 'b'.
             b_upper_bound (float): Upper bound for parameter 'b'.
         """
+
     def __init__(self, method="kumar", initial_a=1.0, initial_b=1.0, warp_level=0.25):
         """
         Initialize the Warp class with the specified method and initial parameters.
@@ -303,10 +305,11 @@ class Warp(nn.Module):
         self.a = nn.Parameter(torch.tensor(initial_a, dtype=torch.float64))
         self.b = nn.Parameter(torch.tensor(initial_b, dtype=torch.float64))
         # Define the parameter bounds
-        self.a_lower_bound = 1.0-min(1.0,warp_level)
-        self.a_upper_bound = 1.0+warp_level
-        self.b_lower_bound = 1.0-min(1.0,warp_level)
-        self.b_upper_bound = 1.0+warp_level
+        self.a_lower_bound = 1.0 - min(1.0, warp_level)
+        self.a_upper_bound = 1.0 + warp_level
+        self.b_lower_bound = 1.0 - min(1.0, warp_level)
+        self.b_upper_bound = 1.0 + warp_level
+
     def transform(self, y):
         """
         Apply the specified transformation to the input.
@@ -402,11 +405,13 @@ class Warp(nn.Module):
                 return mean_transformed, var_diag_transformed
             else:
                 raise NotImplementedError(f"Transform and inverse not implemented for method '{self.method}'.")
+
+
 class XYdata_normalization:
     def __init__(self, X, Y=None, normal_y_mode=0):
         # Compute mean and standard deviation for X
         self.X_mean = X.mean(0)
-        self.X_std = (X.std(0) + EPS) # Avoid division by zero
+        self.X_std = (X.std(0) + EPS)  # Avoid division by zero
 
         # Compute mean and standard deviation for Y if provided
         if Y is not None:
@@ -414,7 +419,7 @@ class XYdata_normalization:
                 self.Y_mean = Y.mean()
                 self.Y_std = (Y.std() + EPS)
             else:
-                self.Y_mean =Y.mean(0)
+                self.Y_mean = Y.mean(0)
                 self.Y_std = (Y.std(0) + EPS)
 
     def normalize(self, X, Y=None):

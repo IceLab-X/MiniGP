@@ -1,9 +1,10 @@
-#author: Zidong Chen
-#date: 2024-06-22
-#version: v1.0
-#description: This script provides functions to fix non-positive definite matrices. Detailed demonstration can be found in the non_positive_definite_fixer_implement.ipynb in model_FAQ file.
+# author: Zidong Chen
+# date: 2024-06-22
+# version: v1.0
+# description: This script provides functions to fix non-positive definite matrices. Detailed demonstration can be found in the non_positive_definite_fixer_implement.ipynb in model_FAQ file.
 import torch
 import numpy as np
+
 
 def remove_similar_data(x, y, threshold=1e-4):
     # Calculate pairwise distances
@@ -43,8 +44,8 @@ def compute_inverse_and_log_det_positive_eigen(matrix):
     # print(eigenvalues)
     positive_indices = eigenvalues > 1e-4
     removed_count = torch.sum(~positive_indices).item()
-    #if removed_count > 0:
-        #print(f"Removed {removed_count} small or non-positive eigenvalue(s).")
+    # if removed_count > 0:
+    # print(f"Removed {removed_count} small or non-positive eigenvalue(s).")
     eigenvalues = eigenvalues[positive_indices]
     eigenvectors = eigenvectors[:, positive_indices]
     inv_eigenvalues = torch.diag(1.0 / eigenvalues)
@@ -52,7 +53,8 @@ def compute_inverse_and_log_det_positive_eigen(matrix):
     log_det_K = torch.sum(torch.log(eigenvalues))
     return inverse_matrix, log_det_K
 
-#eigendecomposition 
+
+# eigendecomposition
 def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
     """
     Compute the log-likelihood of a Gaussian distribution N(y|0, cov). If you have a mean mu, you can use N(y|mu, cov) = N(y-mu|0, cov).
@@ -117,7 +119,6 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky3'):
         raise ValueError('Kinv_method should be either direct, cholesky or eigen')
 
 
-
 def train_adam_with_reset(model, niteration=100, lr=0.01, max_norm=5):
     """
     Train a model using the Adam optimizer with periodic parameter resets.
@@ -158,14 +159,15 @@ def train_adam_with_reset(model, niteration=100, lr=0.01, max_norm=5):
 
             # Check parameter norms and reset if necessary
             with torch.no_grad():
-                for param_name, param in [('log_length_scale', model.kernel.length_scales), ('signal_variance', model.kernel.signal_variance)]:
+                for param_name, param in [('log_length_scale', model.kernel.length_scales),
+                                          ('signal_variance', model.kernel.signal_variance)]:
                     param_norm = torch.norm(param)
                     if param_norm > max_norm:
                         print(f"Parameter {param_name} norm {param_norm} exceeds max_norm, resetting parameters.")
                         reset_parameters()
                         break
-            if (iteration+1) % 10 == 0:  # Print the loss every 10 iterations
-                print(f'Iteration {iteration+1}: Loss: {loss.item():.5f}')
+            if (iteration + 1) % 10 == 0:  # Print the loss every 10 iterations
+                print(f'Iteration {iteration + 1}: Loss: {loss.item():.5f}')
 
 
         except Exception as e:  # Check if the non-positive definite issue is not caused by parameter explosion

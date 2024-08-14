@@ -1,29 +1,27 @@
+# A Python script that tests the accuracy and training speed on different sizes of training sets. The results are stored in result1.csv and result2.csv.
 import os
 import time
 import torch
 import torch.optim as optim
 import csv
 from matplotlib import pyplot as plt
-
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 import data_sample.generate_example_data as data
 from core.ParametricGP import ParametricGP
 from core.svgp import svgp
 from core.cigp_baseline import cigp
 from core.sgpr import vsgp
-
-
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 torch.manual_seed(4)
 
 # Check if CUDA is available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Generate data
-training_sizes = [10,100,1000,2000,3000] # Included 10 for calculation
+training_sizes = [10, 100, 1000, 2000, 3000]  # Included 10 for calculation
 learning_rate = 0.1
-num_epochs = [200,200,800,800]
+num_epochs = [200, 200, 800, 800]
 
-#num_inducings =[50,100,150,200,250,300]
+# num_inducings =[50,100,150,200,250,300]
 all_results = []
 for training_size in training_sizes:
     xtr, ytr, xte, yte = data.generate(training_size, 500, seed=2)
@@ -32,9 +30,9 @@ for training_size in training_sizes:
     xte = xte.to(device)
     yte = yte.to(device)
     # Dynamically adjust num_inducing and batchsize based on training size
-    num_inducing=training_size//40
-    num_inducing_for_vsgp=training_size//10
-    batchsize=training_size//4
+    num_inducing = training_size // 40
+    num_inducing_for_vsgp = training_size // 10
+    batchsize = training_size // 4
     # for num_inducing in num_inducings:
     #     # Dynamically adjust num_inducing and batchsize based on training size
     #     batchsize = num_inducing*2
@@ -47,7 +45,7 @@ for training_size in training_sizes:
     }
 
     results = {}
-    num_epochs_index=-1
+    num_epochs_index = -1
     for model_name, model in models.items():
         num_epochs_index += 1
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -55,7 +53,8 @@ for training_size in training_sizes:
 
         start_time = time.time()
         if isinstance(num_epochs, list):
-            num_epochs_current = num_epochs[num_epochs_index] # num_epochs2 is the number of epochs for the current model
+            num_epochs_current = num_epochs[
+                num_epochs_index]  # num_epochs2 is the number of epochs for the current model
         else:
             num_epochs_current = num_epochs
         for i in range(num_epochs_current):
@@ -81,7 +80,8 @@ for training_size in training_sizes:
             "mse_values": mse_values,
             "average_iteration_time": average_iteration_time
         }
-        print(f'{model_name} - Training Size: {training_size} -Number of Inducing point:{num_inducing}- Average iteration time: {average_iteration_time:.5f} ms')
+        print(
+            f'{model_name} - Training Size: {training_size} -Number of Inducing point:{num_inducing}- Average iteration time: {average_iteration_time:.5f} ms')
 
     # Only store results if training_size is not 50
     if training_size != 10:
@@ -97,7 +97,7 @@ for training_size in training_sizes:
                     'MSE': mse
                 })
 
-#Save all results to CSV
+# Save all results to CSV
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -124,7 +124,8 @@ markers = {'CIGP': 'o', 'VSGP': '^', 'SVIGP': 's', 'ParametricGP': 'd'}
 plt.figure(figsize=(10, 6))
 for model_name in df['Model'].unique():
     model_df = df[df['Model'] == model_name]
-    plt.plot(model_df['Training Size'], model_df['MSE'], marker=markers[model_name], linewidth=2.5, label=f'{model_name}')
+    plt.plot(model_df['Training Size'], model_df['MSE'], marker=markers[model_name], linewidth=2.5,
+             label=f'{model_name}')
 
 plt.xlabel('Training Size', fontsize=18)
 plt.xticks(sorted(df['Training Size'].unique()), fontsize=16)
@@ -142,7 +143,8 @@ for model_name in df['Model'].unique():
     model_df = df[df['Model'] == model_name]
     Training_Time = model_df['Training Time per Iteration (MilliSeconds)']
     log_Training_Time = np.log(Training_Time)
-    plt.plot(model_df['Training Size'], log_Training_Time, marker=markers[model_name], linewidth=2.5, label=f'{model_name}')
+    plt.plot(model_df['Training Size'], log_Training_Time, marker=markers[model_name], linewidth=2.5,
+             label=f'{model_name}')
 
 plt.xlabel('Training Size', fontsize=18)
 plt.xticks(sorted(df['Training Size'].unique()), fontsize=16)

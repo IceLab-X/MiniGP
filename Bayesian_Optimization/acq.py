@@ -26,18 +26,18 @@ def optimize_acqf(acq, raw_samples, bounds, f_best=0, num_restarts=30, options=N
     if options is None:
         options = {}
 
-
     # 获取forward函数的参数信息
     signature = inspect.signature(acq.forward)
     parameters = signature.parameters
 
     # 打印参数数量
     num_params = len(parameters)
-    print(f"Number of parameters in forward function: {num_params}")
+
+    # print(f"Number of parameters in forward function: {num_params}")
 
     # Define the optimization objective
     def obj_func(X):
-      
+
         if num_params == 1:
             # Compute UCB for all random points
             acq_values = acq.forward(X)
@@ -45,8 +45,9 @@ def optimize_acqf(acq, raw_samples, bounds, f_best=0, num_restarts=30, options=N
             acq_values = acq.forward(X, f_best)
         return -acq_values.sum()  # Minimize negative EI
 
-    X_initial = nn.Parameter(torch.rand((raw_samples, len(bounds)), dtype=torch.float32, requires_grad=True) * (bounds[:, 1] - bounds[:, 0]) + bounds[:, 0])
-    X_initial = X_initial.to(torch.float32)
+    X_initial = nn.Parameter(torch.rand((raw_samples, len(bounds)), dtype=torch.float64, requires_grad=True) * (
+                bounds[:, 1] - bounds[:, 0]) + bounds[:, 0])
+    X_initial = X_initial.to(torch.float64)
     # Perform optimization
     optimizer = torch.optim.Adam([X_initial], lr=0.1)  # Adam optimizer for initial point update
     best_x = X_initial.clone().detach()
@@ -56,7 +57,7 @@ def optimize_acqf(acq, raw_samples, bounds, f_best=0, num_restarts=30, options=N
         # Update initial point
         optimizer.zero_grad()
         loss = obj_func(X_initial)
-        loss.requires_grad_(True) 
+        loss.requires_grad_(True)
         loss.backward()
         optimizer.step()
 
@@ -65,7 +66,7 @@ def optimize_acqf(acq, raw_samples, bounds, f_best=0, num_restarts=30, options=N
             best_value = loss.item()
             best_x = X_initial.clone().detach()
 
-    #if return_best_only:
+    # if return_best_only:
     return best_x
     # else:
     #     # Select Q candidates with the highest acquisition values
@@ -105,7 +106,7 @@ def find_next_batch(acq, bounds, batch_size=1, n_samples=1000, f_best=0):
         X_random = torch.FloatTensor(n_samples, bounds.shape[0]).uniform_(bounds[0, 0], bounds[0, 1])
 
         if num_params == 1:
-        # Compute UCB for all random points
+            # Compute UCB for all random points
             UCB_values = acq.forward(X_random)
         if num_params == 2:
             UCB_values = acq.forward(X_random, f_best)
@@ -128,6 +129,7 @@ class UCB:
         self.mean_func = mean_func
         self.variance_func = variance_func
         self.kappa = kappa
+
     # forward
     def forward(self, X):
         """
@@ -177,7 +179,9 @@ class EI:
         std = torch.clamp(std, min=1e-9)
 
         Z = (mean - f_best - self.xi) / std
-        ei = (mean - f_best - self.xi) * torch.tensor(norm.cdf(Z.detach().numpy()), dtype=torch.float32) + std * torch.tensor(norm.pdf(Z.detach().numpy()), dtype=torch.float32)
+        ei = (mean - f_best - self.xi) * torch.tensor(norm.cdf(Z.detach().numpy()),
+                                                      dtype=torch.float32) + std * torch.tensor(
+            norm.pdf(Z.detach().numpy()), dtype=torch.float32)
         return ei
 
 
@@ -219,7 +223,7 @@ class PI:
 
 
 class KG:
-    def __init__(self,mean_func, variance_func, num_fantasies=10):
+    def __init__(self, mean_func, variance_func, num_fantasies=10):
         """
         Initialize the Knowledge Gradient (KG) acquisition function.
 
@@ -296,8 +300,10 @@ if __name__ == "__main__":
     def mean_func(X):
         return torch.sin(X)
 
+
     def variance_func(X):
         return torch.abs(X)
+
 
     # Initialize acquisition function
     acq_function = EI(mean_func, variance_func)
@@ -305,7 +311,7 @@ if __name__ == "__main__":
     # Set initial points and search space bounds
     X_initial = torch.tensor([[0.5]])
     f_best = 0.0
-    bounds = torch.tensor([[-1.0,1.0]])
+    bounds = torch.tensor([[-1.0, 1.0]])
 
     # Optimize acquisition function
     next_candidate = optimize_acqf(acq_function, q=5, raw_samples=500, bounds=bounds, f_best=0, num_restarts=30)

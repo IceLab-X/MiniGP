@@ -10,40 +10,68 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from core import kernel as kernel
+from core.kernel import ARDKernel
 import time as time
+import core.GP_CommonCalculation as GP
+EPS = 1e-10
+JITTER= 1e-6
+torch.set_default_dtype(torch.float64)
+class gplvm(nn.Module):
+    def __init__(self,X,Y,kernel=ARDKernel,latent_dim=1):
+        super(gplvm,self).__init__()
 
-class CIGP(nn.Module):
-    def __init__(self, kernel, noise_variance):
-        super().__init__()
-        self.kernel = kernel
-        self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
+        self.kernel = kernel(latent_dim)
 
-    def forward(self, x_train, y_train, x_test):
-        K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
-        K_s = self.kernel(x_train, x_test)
-        K_ss = self.kernel(x_test, x_test)
+        self.Z = nn.Parameter(torch.rand(len(X), latent_dim))
+        self.normalizer=GP.DataNormalization(mode=1)
+        self.normalizer.fit(Y,'y')
+        self.X = X
+        self.Y = self.normalizer.normalize(Y,'y')
+
+
+        self.kernel = kernel(input_dim=X.size(1))
+
+        # GP hyperparameters
+        self.log_beta = nn.Parameter(torch.ones(1) * 1)
+    def forward(self, Xte):
+
+        K = self.kernel(self.X, self.X) + (self.log_beta.pow(2)) * torch.eye(len(self.X))
+        K_s = self.kernel(self.X, Xte)
+        K_ss = self.kernel(Xte, Xte)
         
         # recommended implementation, fastest so far
-        L = torch.cholesky(K)
-        Alpha = torch.cholesky_solve(y_train, L)
+        L = torch.linalg.cholesky(K)
+        Alpha = torch.cholesky_solve(self.Y, L)
         mu = K_s.T @ Alpha
         # v = torch.cholesky_solve(K_s, L)    # wrong implementation
         v = L.inverse() @ K_s   # correct implementation
         cov = K_ss - v.T @ v
 
-        cov = cov.diag().view(-1, 1).expand_as(mu)
-        return mu.squeeze(), cov
+        cov = cov.diag().view(-1, 1)
+        #denormalize
+        mu = self.normalizer.denormalize(mu,'y')
+        #cov = self.normalizer.denormalize_cov(cov,'y')
+        return mu.squeeze(), 1
             
-    def log_likelihood(self, x_train, y_train):
-        K = self.kernel(x_train, x_train) + self.noise_variance.pow(2) * torch.eye(len(x_train))
+    def negative_log_likelihood(self):
+        K = self.kernel(self.Z, self.Z) + (self.log_beta.pow(2)) * torch.eye(len(self.Z))
         
         L = torch.linalg.cholesky(K)
         log_det_K = 2 * torch.sum(torch.log(torch.diag(L)))
-        Alpha = torch.cholesky_solve(y_train, L, upper = False)
+        Alpha = torch.cholesky_solve(self.Y, L, upper = False)
         
-        # return - 0.5 * (Alpha.T @ Alpha + log_det_K + len(x_train) * np.log(2 * np.pi))
-        return - 0.5 * ( (Alpha ** 2).sum() + log_det_K + len(x_train) * np.log(2 * np.pi))
+        return  -0.5 * ((Alpha ** 2).sum() + 0.5*log_det_K + 0.5*len(self.X) * np.log(2 * np.pi))
+    def train_adam(self, num_iter, lr=1e-1):
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        for i in range(num_iter):
+            optimizer.zero_grad()
+            loss = self.negative_log_likelihood()
+            loss.backward()
+            optimizer.step()
+            if i+1 % 10 == 0:
+                print('iter', i+1, 'nll:{:.5f}'.format(loss.item()))
+            print('iter', i, 'nll:{:.5f}'.format(loss.item()))
+        return loss.item()
         
 # downstate here how to use the GP model
 if __name__ == '__main__':
@@ -59,35 +87,31 @@ if __name__ == '__main__':
                         xte.tanh()] )
 
     xtr = torch.rand(64, 1) * 6
-    ytr = torch.sin(xtr) + torch.rand(64, 1) * 0.1
+    #ytr = torch.sin(xtr) + torch.rand(64, 1) * 0.1
     ytr = torch.hstack([torch.sin(xtr),
                        torch.cos(xtr),
                         xtr.tanh()] )+ torch.randn(64, 3) * 0.1
 
-    # normalize output data to zero mean and unit variance across each dimension
-    ytr_normalized = (ytr - ytr.mean()) / ytr.std()    #works well for cigp
-    xtr_normalized = (xtr - xtr.mean()) / xtr.std()
-    xte_normalized = (xte - xtr.mean()) / xtr.std()
-    kernel1 = kernel.ARDKernel(1)
+
     # kernel1 = kernel.LinearKernel(1)
     #kernel1 = kernel.SumKernel(kernel.LinearKernel(1), kernel.ARDKernel(1))
     
     # define the gplvm model
     # define latent variable
     latent_dim = 1
-    z = nn.Parameter(torch.rand(len(xtr), latent_dim))
+
     
     # define GP model as if we are doing regression
-    GPmodel = CIGP(kernel=kernel1, noise_variance=1.0)
+    GPmodel = gplvm(xtr,ytr)
     
     # optimization now includes the latent variable z
-    optimizer = torch.optim.Adam(list(GPmodel.parameters()) + [z], lr=1e-1)
+    optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-1)
     # optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-1)
-    
+
     for i in range(200):
         startTime = time.time()
         optimizer.zero_grad()
-        loss = -GPmodel.log_likelihood(z, ytr_normalized)
+        loss = -GPmodel.negative_log_likelihood()
         loss.backward()
         optimizer.step()
         print('iter', i, 'nll:{:.5f}'.format(loss.item()))
@@ -95,23 +119,22 @@ if __name__ == '__main__':
         print('time elapsed: {:.3f}s'.format(timeElapsed))
         
     with torch.no_grad():
-        ypred, ypred_var = GPmodel.forward(xtr_normalized, ytr_normalized, xte_normalized)
-    ypred = ypred * ytr.std() + ytr.mean()
-    ypred_var = ypred_var * ytr.std() + ytr.mean()
+        ypred, ypred_var = GPmodel.forward(xte)
+
     plt.figure()
-    plt.scatter(z.detach().numpy(), xtr.detach().numpy(), c='r', marker='+')
+    plt.scatter(GPmodel.Z.detach().numpy(), xtr.detach().numpy(), c='r', marker='+')
     plt.show()
         
     # plt.close('all')
     color_list = ['r', 'g', 'b']
-    
+
     plt.figure()
     # plt.plot(xtr, ytr, 'b+')
     for i in range(3):
         #plt.plot(xtr, ytr[:, i], color_list[i]+'+')
-        plt.scatter(z.detach().numpy(), ytr[:, i], color=color_list[i])
-        # plt.plot(xte, yte[:, i], label='truth', color=color_list[i])
-        # plt.plot(xte, ypred[:, i], label='prediction', color=color_list[i], linestyle='--')
+        #plt.scatter(GPmodel.Z.detach().numpy(), ytr[:, i], color=color_list[i])
+        plt.plot(xte, yte[:, i], label='truth', color=color_list[i])
+        plt.plot(xte, ypred[:, i], label='prediction', color=color_list[i], linestyle='--')
         # plt.fill_between(xte.squeeze(-1).detach().numpy(),
         #                  ypred[:, i].squeeze(-1).detach().numpy() + torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),
         #                  ypred[:, i].squeeze(-1).detach().numpy() - torch.sqrt(ypred_var[:, i].squeeze(-1)).detach().numpy(),

@@ -5,12 +5,14 @@
 import os
 import torch
 import torch.nn as nn
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True' # Fixing strange error if run in MacOS
+
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 from matplotlib import pyplot as plt
 from torch.utils.data import TensorDataset, DataLoader
 from core.kernel import ARDKernel
 import core.GP_CommonCalculation as GP
 import data_sample.generate_example_data as data
+
 JITTER = 1e-3
 PI = 3.1415
 torch.manual_seed(4)
@@ -20,11 +22,11 @@ class svgp(nn.Module):
     def __init__(self, X, Y, num_inducing, batchsize=None):
         super(svgp, self).__init__()
 
-        self.X_all, self.Y_all = X,Y
-        self.num_data= X.size(0)
+        self.X_all, self.Y_all = X, Y
+        self.num_data = X.size(0)
         self.kernel = ARDKernel(1)
         self.num_inducing = num_inducing
-        input_dim=X.size(1)
+        input_dim = X.size(1)
 
         # Inducing points
         self.xm = nn.Parameter(torch.rand(self.num_inducing, input_dim, dtype=torch.float64))  # Inducing points
@@ -38,10 +40,10 @@ class svgp(nn.Module):
 
         # normalize
         self.normalizer = GP.DataNormalization(method='standard')
-        self.normalizer.fit(self.X_all,'x')
-        self.normalizer.fit(self.Y_all,'y')
-        self.X_all = self.normalizer.normalize(self.X_all,'x')
-        self.Y_all = self.normalizer.normalize(self.Y_all,'y')
+        self.normalizer.fit(self.X_all, 'x')
+        self.normalizer.fit(self.Y_all, 'y')
+        self.X_all = self.normalizer.normalize(self.X_all, 'x')
+        self.Y_all = self.normalizer.normalize(self.Y_all, 'y')
         self.batchsize = batchsize
         if self.batchsize is not None:
             # Create TensorDataset and DataLoader for minibatch training
@@ -64,13 +66,15 @@ class svgp(nn.Module):
             return self.X_all, self.Y_all
 
     def loss_function(self, X, Y):
-        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), dtype=torch.float64,device=self.xm.device)
+        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), dtype=torch.float64,
+                                                                  device=self.xm.device)
         Lm = torch.linalg.cholesky(K_mm)
         K_mm_inv = torch.cholesky_inverse(Lm)
         K_mn = self.kernel(self.xm, X)
         K_nm = K_mn.t()
         qu_S = self.chole @ self.chole.t() + JITTER * torch.eye(self.xm.size(0),
-                                                                dtype=torch.float64,device=self.xm.device)  # Ensure positive definite
+                                                                dtype=torch.float64,
+                                                                device=self.xm.device)  # Ensure positive definite
         Ls = torch.linalg.cholesky(qu_S)
         K_nn = self.kernel(X, X).diag()
         batch_size = X.size(0)
@@ -106,12 +110,13 @@ class svgp(nn.Module):
         logdetKmm = 2 * Lm.diag().abs().log().sum()
         KL = 0.5 * (K_mm_inv @ qu_S).diag().sum(dim=0).view(-1, 1) + 0.5 * (self.qu_mean.t() @ K_mm_inv @ self.qu_mean) \
              - 0.5 * logdetS + 0.5 * logdetKmm - 0.5 * self.num_inducing
-        variational_loss=KL - likelihood_sum * self.num_data / batch_size
+        variational_loss = KL - likelihood_sum * self.num_data / batch_size
         return variational_loss
 
     def forward(self, Xte):
-        Xte=self.normalizer.normalize(Xte,'x')
-        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), dtype=torch.float64,device=self.xm.device)
+        Xte = self.normalizer.normalize(Xte, 'x')
+        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), dtype=torch.float64,
+                                                                  device=self.xm.device)
         Lm = torch.linalg.cholesky(K_mm)
         K_mm_inv = torch.cholesky_inverse(Lm)
         K_tt = self.kernel(Xte, Xte)
@@ -120,26 +125,26 @@ class svgp(nn.Module):
         mean = A @ self.qu_mean  # (t, 1)
         yvar = K_tt - K_tm @ K_mm_inv @ K_tm.t() + K_tm @ K_mm_inv @ (self.chole @ self.chole.t()) @ K_mm_inv @ K_tm.t()
         yvar = yvar.diag().view(-1, 1)
-        #denormalize
-        mean = self.normalizer.denormalize(mean,'y')
-        yvar= self.normalizer.denormalize_cov(yvar,'y')
-        return mean,yvar
+        # denormalize
+        mean = self.normalizer.denormalize(mean, 'y')
+        yvar = self.normalizer.denormalize_cov(yvar, 'y')
+        return mean, yvar
+
 
 if __name__ == '__main__':
     # Train and evaluate the model
     torch.manual_seed(4)
     # Train set
-    num_data =3000
-    xtr,ytr,xte,yte=data.generate(num_data,500,seed=2,input_dim=1)
-    device= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    num_data = 3000
+    xtr, ytr, xte, yte = data.generate(num_data, 500, seed=2, input_dim=1)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     xtr = xtr.to(device)
     ytr = ytr.to(device)
     xte = xte.to(device)
     yte = yte.to(device)
 
-
     # Training the model
-    num_inducing =75
+    num_inducing = 75
     batch_size = 750
     learning_rate = 0.1
     num_epochs = 800
@@ -147,12 +152,13 @@ if __name__ == '__main__':
     model = svgp(xtr, ytr, num_inducing=num_inducing, batchsize=batch_size).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     import time
+
     iteration_times = []
     for i in range(num_epochs):
         start_time = time.time()
         optimizer.zero_grad()
         X_batch, Y_batch = model.new_batch()
-        loss= model.loss_function(X_batch, Y_batch)
+        loss = model.loss_function(X_batch, Y_batch)
         loss.backward()
         optimizer.step()
         end_time = time.time()
@@ -165,12 +171,11 @@ if __name__ == '__main__':
     # Evaluate the model on the test set
     model.eval()
     with torch.no_grad():
-        predictions,var = model(xte)
+        predictions, var = model(xte)
         mse = torch.mean((predictions - yte) ** 2)
         print(f'Test MSE: {mse.item()}')
         plt.figure()
         plt.plot(xte.cpu().numpy(), yte.cpu().numpy(), 'r.')
         plt.plot(xte.cpu().numpy(), predictions.cpu().numpy(), 'b-')
-        plt.fill_between(xte.cpu().numpy().reshape(-1), (predictions - 1.96*var.sqrt()).cpu().numpy().reshape(-1),
-                         (predictions + 1.96*var.sqrt()).cpu().numpy().reshape(-1), alpha=0.2)
-
+        plt.fill_between(xte.cpu().numpy().reshape(-1), (predictions - 1.96 * var.sqrt()).cpu().numpy().reshape(-1),
+                         (predictions + 1.96 * var.sqrt()).cpu().numpy().reshape(-1), alpha=0.2)

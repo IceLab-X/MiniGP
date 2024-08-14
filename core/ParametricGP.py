@@ -2,13 +2,14 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 from matplotlib import pyplot as plt
 from core.kernel import ARDKernel
 import core.GP_CommonCalculation as GP
 import data_sample.generate_example_data as data
 from core.GP_CommonCalculation import conjugate_gradient as cg
 from torch.utils.data import TensorDataset, DataLoader
+
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 
 # Constants
 JITTER = 1e-3
@@ -19,12 +20,13 @@ torch.manual_seed(4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.set_default_dtype(torch.float64)
 
+
 class ParametricGP(nn.Module):
-    def __init__(self, X, Y, num_inducing,batchsize=None):
+    def __init__(self, X, Y, num_inducing, batchsize=None):
         super(ParametricGP, self).__init__()
-        self.normalizer= GP.DataNormalization(method='standard')
-        self.normalizer.fit(X,'x')
-        self.normalizer.fit(Y,'y')
+        self.normalizer = GP.DataNormalization(method='standard')
+        self.normalizer.fit(X, 'x')
+        self.normalizer.fit(Y, 'y')
 
         self.kernel = ARDKernel(1).to(device)
         self.num_inducing = num_inducing
@@ -36,7 +38,7 @@ class ParametricGP(nn.Module):
         # Inducing points
         self.xm = nn.Parameter(torch.rand(num_inducing, input_dim, dtype=torch.float64).to(device))
         self.qu_mean = nn.Parameter(torch.rand(num_inducing, 1, dtype=torch.float64).to(device))
-        self.jitter= JITTER
+        self.jitter = JITTER
         self.device = device
         # Gaussian noise
         self.log_beta = nn.Parameter(torch.ones(1, dtype=torch.float64).to(device) * -4)
@@ -50,7 +52,6 @@ class ParametricGP(nn.Module):
         else:
             self.iterator = None
 
-
     def new_batch(self):
         if self.iterator is not None:
             try:
@@ -62,6 +63,7 @@ class ParametricGP(nn.Module):
             return X_batch, Y_batch
         else:
             return self.X_all, self.Y_all
+
     def predict(self, x):
         K_mm = self.kernel(self.xm, self.xm) + self.jitter * torch.eye(self.xm.size(0), dtype=torch.float64).to(
             self.device)
@@ -82,21 +84,22 @@ class ParametricGP(nn.Module):
         y_var = y_var.view(-1, 1)
         return y_pred, y_var
 
-    def loss_function(self,x_batch,y_batch):
-        y_pred= self.predict(x_batch)
+    def loss_function(self, x_batch, y_batch):
+        y_pred = self.predict(x_batch)
         n = y_batch.size(0)
         loss = 0.5 * n * (
-            torch.log(self.log_beta.exp().pow(-1))+ torch.log(2 * torch.tensor(PI, dtype=torch.float64))) + \
+                torch.log(self.log_beta.exp().pow(-1)) + torch.log(2 * torch.tensor(PI, dtype=torch.float64))) + \
                0.5 * (y_batch - y_pred).pow(2).sum() / self.log_beta.exp().pow(-1)
         return loss
+
 
 if __name__ == '__main__':
     # Generate data
     xtr, ytr, xte, yte = data.generate(2000, 500, seed=2)
-    xtr= xtr.to(device)
+    xtr = xtr.to(device)
     ytr = ytr.to(device)
     xte = xte.to(device)
-    yte= yte.to(device)
+    yte = yte.to(device)
 
     # Training the model
     num_inducing = 100
@@ -104,12 +107,13 @@ if __name__ == '__main__':
     num_epochs = 800
     batchsize = 500
     # Create an instance of ParametricGP
-    model = ParametricGP(xtr, ytr, num_inducing=num_inducing,batchsize=batchsize).to(device)
+    model = ParametricGP(xtr, ytr, num_inducing=num_inducing, batchsize=batchsize).to(device)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     loss_values = []
     iteration_times = []
     import time
+
     for i in range(num_epochs):
         start_time = time.time()
         optimizer.zero_grad()
@@ -131,7 +135,7 @@ if __name__ == '__main__':
     # Evaluate the model on the test set
     model.eval()
     with torch.no_grad():
-        ypred,yvar = model.forward(xte)
+        ypred, yvar = model.forward(xte)
         mse = torch.mean((ypred - yte) ** 2)
         print(f'Test MSE: {mse.item()}')
 
@@ -145,16 +149,16 @@ if __name__ == '__main__':
     # plt.show()
 
     plt.figure(figsize=(10, 6))
-    #plt.plot(xtr.cpu().numpy(), ytr.cpu().numpy(), 'kx', label='Training data')
-    normalizer=model.normalizer
-    qu_mean=normalizer.denormalize(model.qu_mean.detach(),'y')
-    xm=normalizer.denormalize(model.xm.cpu().detach(),'x')
+    # plt.plot(xtr.cpu().numpy(), ytr.cpu().numpy(), 'kx', label='Training data')
+    normalizer = model.normalizer
+    qu_mean = normalizer.denormalize(model.qu_mean.detach(), 'y')
+    xm = normalizer.denormalize(model.xm.cpu().detach(), 'x')
     plt.scatter(xm.cpu(), qu_mean.cpu(), color='red', label='Inducing points')
     plt.plot(xte.cpu().numpy(), yte.cpu().numpy(), 'b', label='True function')
     plt.plot(xte.cpu().numpy(), ypred.cpu().numpy(), 'r', label='Predicted function')
     plt.fill_between(xte.cpu().numpy().squeeze(),
                      (ypred.cpu().numpy() - 1.96 * torch.sqrt(yvar).cpu().numpy()).squeeze(),
                      (ypred.cpu().numpy() + 1.96 * torch.sqrt(yvar).cpu().numpy()).squeeze(), alpha=0.2)
-    plt.xlim(0,1)
+    plt.xlim(0, 1)
     plt.legend()
     plt.show()
