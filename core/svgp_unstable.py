@@ -5,14 +5,13 @@
 import os
 import torch
 import torch.nn as nn
-
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 from matplotlib import pyplot as plt
 from torch.utils.data import TensorDataset, DataLoader
 from core.kernel import ARDKernel
 import core.GP_CommonCalculation as GP
 import data_sample.generate_example_data as data
-
+import time
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 JITTER = 1e-3
 PI = 3.1415
 torch.manual_seed(4)
@@ -84,26 +83,17 @@ class svgp(nn.Module):
         # diag(K_tilde), (b, 1)
         precision = 1 / self.log_beta.exp()
         K_tilde = precision * (K_nn - (K_nm @ K_mm_inv @ K_mn).diag())
-
         # k_i \cdot k_i^T, (b, m, m)
-        # Expand dimensions and transpose for batch
-        K_nm_expanded = K_nm.unsqueeze(2)  # Shape (b, m, 1)
-        K_nm_transposed = K_nm_expanded.transpose(1, 2)  # Shape (b, 1, m)
-
-        # Perform batch matrix multiplication
-        lambda_mat = torch.matmul(K_nm_expanded, K_nm_transposed)  # Shape (b, m, m)
-        # K_mm_inv \cdot k_i \cdot k_i^T \cdot K_mm_inv, (b, m, m)
-        lambda_mat = K_mm_inv @ lambda_mat @ K_mm_inv
+        lambda_mat = K_mm_inv @ K_mn @ K_nm @ K_mm_inv
         # Trace terms, (b,)
-        batch_matrices = qu_S @ lambda_mat
-        traces = precision * torch.einsum('bii->b', batch_matrices)
-
+        S_Ai = qu_S @ lambda_mat
+        traces = precision * torch.trace(S_Ai)
         # Likelihood
         likelihood_sum = -0.5 * batch_size * torch.log(2 * torch.tensor(PI)) + 0.5 * batch_size * torch.log(
             self.log_beta.exp()) \
-                         - 0.5 * self.log_beta.exp() * ((Y - K_nm @ K_mm_inv @ self.qu_mean) ** 2).sum(dim=0).view(-1,
+                         - 0.5 * self.log_beta.exp() * ((Y - mean_vector) ** 2).sum(dim=0).view(-1,
                                                                                                                    1) - 0.5 * torch.sum(
-            K_tilde) - 0.5 * torch.sum(traces)
+            K_tilde) - 0.5 * traces
 
         # Compute KL
         logdetS = 2 * Ls.diag().abs().log().sum()
@@ -144,8 +134,8 @@ if __name__ == '__main__':
     yte = yte.to(device)
 
     # Training the model
-    num_inducing = 75
-    batch_size = 750
+    num_inducing = 200
+    batch_size = 600
     learning_rate = 0.1
     num_epochs = 800
     # Create an instance of SVIGP
@@ -158,11 +148,13 @@ if __name__ == '__main__':
         start_time = time.time()
         optimizer.zero_grad()
         X_batch, Y_batch = model.new_batch()
+
         loss = model.loss_function(X_batch, Y_batch)
         loss.backward()
         optimizer.step()
         end_time = time.time()
-        iteration_times.append(end_time - start_time)
+        iteration_time=end_time-start_time
+        iteration_times.append(iteration_time)
         if i % 10 == 0:
             print('iter', i, 'nll:{:.5f}'.format(loss.item()))
 
