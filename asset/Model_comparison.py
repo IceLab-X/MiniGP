@@ -7,7 +7,7 @@ from sklearn.metrics import r2_score
 from core.autoGP import autoGP
 from core.sgpr import vsgp
 from core.kernel import ARDKernel, NeuralKernel
-
+import core.GP_CommonCalculation as GP
 torch.set_default_dtype(torch.float64)
 
 class DataGenerator:
@@ -80,7 +80,7 @@ data_gen = DataGenerator(n_datasets=24, n_samples=800, x_range=20, x_dim=1)
 data_gen.generate_warped_data()
 # data_gen.generate_periodic_data()
 #data_gen.plot_datasets(num_plots=5)
-
+device = 'cpu'
 model1_better_count = 0
 model2_better_count = 0
 similar_performance_count = 0
@@ -99,18 +99,27 @@ for X, y in data_gen.datasets:
     y_train = torch.tensor(y_train, dtype=torch.float64).view(-1, 1)
     y_test = torch.tensor(y_test, dtype=torch.float64).view(-1, 1)
 
+    normalizer = GP.DataNormalization(method='min_max')
+    normalizer.fit(X_train, 'x')
+    normalizer.fit(y_train, 'y')
+    normalizer.fit(X_test, 'xte')
+    X_train_normalized = normalizer.normalize(X_train, 'x')
+    y_train_normalized = normalizer.normalize(y_train, 'y')
+    X_test_normalized = normalizer.normalize(X_test, 'xte')
     # Model 1: autoGP
-    model1 = autoGP(X_train, y_train, normal_method="standard", kernel=NeuralKernel, inputwarp=False, deepkernel=False)
-    model1.train_auto()
-    y_pred_model1, _ = model1.forward(X_test)
+    model1 = autoGP(input_dim=1,kernel=NeuralKernel, inputwarp=False, deepkernel=False, device=device)
+    model1.train_auto(X_train_normalized, y_train_normalized)
+    y_pred_model1, _ = model1.forward(X_train_normalized,y_train_normalized,X_test_normalized)
+    y_pred_model1 = normalizer.denormalize(y_pred_model1, 'y')
     r2_model1 = r2_score(y_test.detach(), y_pred_model1.detach())
     mse1 = torch.mean((y_pred_model1 - y_test) ** 2)
     print("AutoGP R^2:", r2_model1, mse1)
 
     # Model 2: vsgp
-    model2  = autoGP(X_train, y_train, normal_method="standard", kernel=NeuralKernel, inputwarp=True, deepkernel=False)
-    model2.train_auto()
-    y_pred_model2, _ = model2.forward(X_test)
+    model2 = autoGP(input_dim=1,kernel=NeuralKernel, inputwarp=True, deepkernel=False, device=device)
+    model2.train_auto(X_train_normalized, y_train_normalized)
+    y_pred_model2, _ = model1.forward(X_train_normalized,y_train_normalized,X_test_normalized)
+    y_pred_model2 = normalizer.denormalize(y_pred_model2, 'y')
     r2_model2 = r2_score(y_test.detach(), y_pred_model2.detach())
     mse2 = torch.mean((y_pred_model2 - y_test) ** 2)
     print("SGP R^2:", r2_model2, mse2)
@@ -181,7 +190,7 @@ plt.xlim(0,25)
 plt.yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
 
 # Save the plot as an image file
-plt.savefig('Model_comparison_warped.png')
+#plt.savefig('Model_comparison_warped.png')
 
 # Show the plot
 plt.show()
