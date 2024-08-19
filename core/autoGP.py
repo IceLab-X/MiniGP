@@ -6,9 +6,6 @@ from core.kernel import NeuralKernel, ARDKernel
 import time
 from core.sgpr import vsgp
 import os
-print(torch.__version__)
-# I use torch (1.11.0) for this work. lower version may not work.
-
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 JITTER = 1e-3
@@ -19,7 +16,7 @@ torch.set_default_dtype(torch.float64)
 
 class autoGP(nn.Module):
 
-    def __init__(self, X, Y, kernel=None, normal_method='min_max', inputwarp=True, num_inducing=None, deepkernel=False):
+    def __init__(self, X, Y, kernel=None, normal_method='min_max', inputwarp=False, num_inducing=None, deepkernel=False):
         super(autoGP, self).__init__()
 
         # GP hyperparameters
@@ -48,12 +45,10 @@ class autoGP(nn.Module):
                                                         nn.LeakyReLU(),
                                                         nn.Linear(input_dim * 5, input_dim))
             self.inputwarp = False  # if deepkernel is enabled then inputwarp is disabled
-        # else:
 
-        # self.inputwarp=True # if deepkernel is disabled then inputwarp is enabled
 
         if self.inputwarp:
-            self.warp = GP.Warp(method='kumar', initial_a=1.0, initial_b=1.0)
+            self.warp = GP.Warp(method='kumar', initial_a=1.0, initial_b=1.0,warp_level=0.95)
             self.data = GP.DataNormalization(method='min_max')
 
         else:
@@ -163,7 +158,7 @@ class autoGP(nn.Module):
 
         return mean, var_diag
 
-    def train_auto(self, niteration1=100, lr1=0.1, niteration2=20, lr2=0.001):
+    def train_auto(self, niteration1=180, lr1=0.1, niteration2=20, lr2=0.001):
         start_time = time.time()
         optimizer = torch.optim.Adam(self.parameters(), lr=lr1)
         optimizer.zero_grad()

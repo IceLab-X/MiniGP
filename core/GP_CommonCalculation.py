@@ -269,11 +269,14 @@ class DataNormalization(nn.Module):
 
         if self.method == "standard":
             std_vals = self.params[dataset_name]['std'].to(device)
-            return normalized_cov * (std_vals.T @ std_vals + self.eps)
+            std_vals = std_vals.view(-1, 1)  # Ensure std_vals is a column vector
+
+            return normalized_cov * (std_vals.T  @ std_vals + self.eps)
         elif self.method == "min_max":
             min_vals = self.params[dataset_name]['min'].to(device)
             max_vals = self.params[dataset_name]['max'].to(device)
-            return normalized_cov * ((max_vals - min_vals).T @ (max_vals - min_vals) + self.eps)
+            range_vals = (max_vals - min_vals).view(-1, 1)  # Ensure range_vals is a column vector
+            return normalized_cov * (range_vals.T @ range_vals + self.eps)
 
 
 class Warp(nn.Module):

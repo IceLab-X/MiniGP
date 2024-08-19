@@ -18,8 +18,7 @@ class eigen_pairs:
         self.value = eigen_value
         self.vector = eigen_vector
 
-
-class HOGP_simple(nn.Module):
+class hogp(nn.Module):
     def __init__(self, noise_variance, output_shape, learnable_grid=False, learnable_map=False):
         super().__init__()
         self.noise_variance = nn.Parameter(torch.tensor([noise_variance]))
@@ -120,7 +119,7 @@ class TestHOGP_simple(unittest.TestCase):
     def setUp(self):
         self.noise_variance = 0.01
         self.output_shape = (3, 4)
-        self.model = HOGP_simple(self.noise_variance, self.output_shape)
+        self.model = hogp(self.noise_variance, self.output_shape)
         self.x_train = [torch.tensor(np.random.rand(10, 1), dtype=torch.float32)]
         self.y_train = [torch.tensor(np.random.rand(10, 1), dtype=torch.float32)]
         self.x_test = [torch.tensor(np.random.rand(5, 1), dtype=torch.float32)]
@@ -167,7 +166,7 @@ if __name__ == '__main__':
 
     output_shape = ytr[0][0, ...].shape
 
-    GPmodel = HOGP_simple(noise_variance=1.0, output_shape=output_shape)
+    GPmodel = hogp(noise_variance=1.0, output_shape=output_shape)
 
     optimizer = torch.optim.Adam(GPmodel.parameters(), lr=1e-2)
 
