@@ -1,121 +1,95 @@
 import torch
 import torch.nn as nn
-import core.GP_CommonCalculation as GP
-from data_sample import generate_example_data as data
-from core.kernel import NeuralKernel, ARDKernel
 import time
-from core.sgpr import vsgp
-import os
-
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
-JITTER = 1e-3
-EPS = 1e-10
-PI = 3.1415
+from core.kernel import NeuralKernel, ARDKernel
+JITTER= 1e-3
+PI= 3.1415
 torch.set_default_dtype(torch.float64)
-
-
 class autoGP(nn.Module):
 
-    def __init__(self, X, Y, kernel=None, normal_method='min_max', inputwarp=False, num_inducing=None, deepkernel=False):
+    def __init__(self, input_dim, kernel=None, inputwarp=False, num_inducing=None, deepkernel=False, training_size=None,device='cpu'):
         super(autoGP, self).__init__()
 
         # GP hyperparameters
-        self.log_beta = nn.Parameter(torch.ones(1) * 0)  # Initial noise level
+        self.log_beta = nn.Parameter(torch.ones(1) * 0).to(device)  # Initial noise level
 
         self.inputwarp = inputwarp
-        # Inducing points
-        input_dim = X.size(1)
-
+        self.deepkernel = deepkernel
+        self.device=device
+        # Kernel setup
         if kernel is None:
-            self.kernel = NeuralKernel(input_dim)
+            self.kernel = NeuralKernel(input_dim).to(device)
         else:
-            self.kernel = kernel(input_dim)
+            self.kernel = kernel(input_dim).to(device)
 
         if input_dim > 2:
             self.deepkernel = True
-            self.kernel = kernel(input_dim)
-
-        else:
-            self.deepkernel = deepkernel
+            self.kernel = kernel(input_dim).to(device)
 
         if self.deepkernel:
-            self.FeatureExtractor = torch.nn.Sequential(nn.Linear(input_dim, input_dim * 10),
-                                                        nn.LeakyReLU(),
-                                                        nn.Linear(input_dim * 10, input_dim * 5),
-                                                        nn.LeakyReLU(),
-                                                        nn.Linear(input_dim * 5, input_dim))
-            self.inputwarp = False  # if deepkernel is enabled then inputwarp is disabled
-
+            self.FeatureExtractor = torch.nn.Sequential(
+                nn.Linear(input_dim, input_dim * 10),
+                nn.LeakyReLU(),
+                nn.Linear(input_dim * 10, input_dim * 5),
+                nn.LeakyReLU(),
+                nn.Linear(input_dim * 5, input_dim)
+            ).to(device)
+            self.inputwarp = False  # Disable inputwarp if deepkernel is enabled
 
         if self.inputwarp:
-            self.warp = GP.Warp(method='kumar', initial_a=1.0, initial_b=1.0,warp_level=0.95)
-            self.data = GP.DataNormalization(method='min_max')
+            self.warp = GP.Warp(method='kumar', initial_a=1.0, initial_b=1.0, warp_level=0.95).to(device)
 
-        else:
-            self.data = GP.DataNormalization(method=normal_method)
-        self.data.fit(X, 'x')
-        self.data.fit(Y, 'y')
-        self.X = self.data.normalize(X, 'x')
-        self.Y = self.data.normalize(Y, 'y')
-        if num_inducing is None:
-            num_inducing = self.X.size(0) * input_dim // 10
+        # Inducing points
+        if num_inducing is None and training_size is not None:
+            num_inducing = training_size * input_dim // 10
+        if num_inducing is None and training_size is None:
+            num_inducing = 50  # Default value if not specified
+        self.xm = nn.Parameter(torch.rand((num_inducing, input_dim))).to(device)  # Inducing points
 
-        self.xm = nn.Parameter(torch.rand((num_inducing, input_dim)))  # Inducing points
-        # print(self.deepkernel,self.inputwarp,self.kernel)
-
-    def negative_lower_bound(self):
+    def negative_lower_bound(self, X, Y):
         """Negative lower bound as the loss function to minimize."""
 
         if self.deepkernel:
-            X1 = self.FeatureExtractor(self.X)
+            X1 = self.FeatureExtractor(X)
             X = (X1 - X1.mean(0).expand_as(X1)) / X1.std(0).expand_as(X1)
-
         elif self.inputwarp:
-            X = self.warp.transform(self.X)
-
-        else:
-            X = self.X
+            X = self.warp.transform(X)
 
         xm = self.xm
 
-        n = self.X.size(0)
-        K_mm = self.kernel(xm, xm) + JITTER * torch.eye(self.xm.size(0))
+        n = X.size(0)
+        K_mm = self.kernel(xm, xm) + JITTER * torch.eye(self.xm.size(0)).to(device)
         L = torch.linalg.cholesky(K_mm)
         K_mn = self.kernel(xm, X)
         K_nn = self.kernel(X, X)
         A = torch.linalg.solve_triangular(L, K_mn, upper=False)
         A = A * torch.sqrt(self.log_beta.exp())
         AAT = A @ A.t()
-        B = torch.eye(self.xm.size(0)) + AAT + JITTER * torch.eye(self.xm.size(0))
+        B = torch.eye(self.xm.size(0)).to(device) + AAT + JITTER * torch.eye(self.xm.size(0)).to(device)
         LB = torch.linalg.cholesky(B)
 
-        c = torch.linalg.solve_triangular(LB, A @ self.Y, upper=False)
+        c = torch.linalg.solve_triangular(LB, A @ Y, upper=False)
         c = c * torch.sqrt(self.log_beta.exp())
         nll = (n / 2 * torch.log(2 * torch.tensor(PI)) +
                torch.sum(torch.log(torch.diagonal(LB))) +
                n / 2 * torch.log(1 / self.log_beta.exp()) +
-               self.log_beta.exp() / 2 * torch.sum(self.Y * self.Y) -
+               self.log_beta.exp() / 2 * torch.sum(Y * Y) -
                0.5 * torch.sum(c.squeeze() * c.squeeze()) +
                self.log_beta.exp() / 2 * torch.sum(torch.diagonal(K_nn)) -
                0.5 * torch.trace(AAT))
         return nll
 
-    def optimal_inducing_point(self):
+    def optimal_inducing_point(self, X, Y):
         """Compute optimal inducing points mean and covariance."""
-        # X = self.warp.transform(self.X)
         if self.deepkernel:
-            X1 = self.FeatureExtractor(self.X)
+            X1 = self.FeatureExtractor(X)
             X = (X1 - X1.mean(0).expand_as(X1)) / X1.std(0).expand_as(X1)
-
         elif self.inputwarp:
-            X = self.warp.transform(self.X)
-
-        else:
-            X = self.X
+            X = self.warp.transform(X)
 
         xm = self.xm
 
-        K_mm = self.kernel(xm, xm) + JITTER * torch.eye(self.xm.size(0))
+        K_mm = self.kernel(xm, xm) + JITTER * torch.eye(self.xm.size(0)).to(device)
         L = torch.linalg.cholesky(K_mm)
         L_inv = torch.inverse(L)
         K_mm_inv = L_inv.t() @ L_inv
@@ -124,99 +98,84 @@ class autoGP(nn.Module):
         K_nm = K_mn.t()
         sigma = torch.inverse(K_mm + self.log_beta.exp() * K_mn @ K_nm)
 
-        mean_m = self.log_beta.exp() * (K_mm @ sigma @ K_mn) @ self.Y
+        mean_m = self.log_beta.exp() * (K_mm @ sigma @ K_mn) @ Y
         A_m = K_mm @ sigma @ K_mm
         return mean_m, A_m, K_mm_inv
 
-    def forward(self, Xte):
+    def forward(self, Xte, X, Y):
         """Compute mean and variance for posterior distribution."""
-
         if self.deepkernel:
-            Xte1 = self.data.normalize(Xte, 'x')
-            X1 = self.FeatureExtractor(self.X)
-            Xte2 = self.FeatureExtractor(Xte1)
-            Xte = (Xte2 - X1.mean(0).expand_as(Xte)) / X1.std(0).expand_as(Xte)
-
+            X1 = self.FeatureExtractor(X)
+            Xte1 = self.FeatureExtractor(Xte)
+            Xte = (Xte1 - X1.mean(0).expand_as(Xte1)) / X1.std(0).expand_as(Xte1)
         elif self.inputwarp:
-            self.data.fit(Xte, 'xte')
-            Xte1 = self.data.normalize(Xte, 'xte')
-            Xte = self.warp.transform(Xte1)
-        else:
-            Xte = self.data.normalize(Xte, 'x')
+            Xte = self.warp.transform(Xte)
+
         xm = self.xm
         K_tt = self.kernel(Xte, Xte)
         K_tm = self.kernel(Xte, xm)
         K_mt = K_tm.t()
-        mean_m, A_m, K_mm_inv = self.optimal_inducing_point()
+        mean_m, A_m, K_mm_inv = self.optimal_inducing_point(X, Y)
         mean = (K_tm @ K_mm_inv) @ mean_m
         var = (K_tt - K_tm @ K_mm_inv @ K_mt +
                K_tm @ K_mm_inv @ A_m @ K_mm_inv @ K_mt)
         var_diag = var.diag().view(-1, 1)
-        # de-normalized
-        mean = self.data.denormalize(mean, 'y')
-        var_diag = self.data.denormalize_cov(var_diag, 'y')
 
         return mean, var_diag
 
-    def train_auto(self, niteration1=180, lr1=0.1, niteration2=20, lr2=0.001):
+    def train_auto(self, X, Y, niteration1=180, lr1=0.1, niteration2=20, lr2=0.001):
         start_time = time.time()
         optimizer = torch.optim.Adam(self.parameters(), lr=lr1)
-        optimizer.zero_grad()
         for i in range(niteration1):
             optimizer.zero_grad()
-            loss = self.negative_lower_bound()
+            loss = self.negative_lower_bound(X, Y)
             loss.backward()
             optimizer.step()
-            # if i%10==0:
-            # print(self.warp.transform(self.Y)[:2])
-            # print(self.warp.a,self.warp.b)
-            # print('train with adam, iter', i, ' nll:', loss.item())
 
         optimizer = torch.optim.LBFGS(self.parameters(), max_iter=niteration2, lr=lr2)
 
         def closure():
             optimizer.zero_grad()
-            loss = self.negative_lower_bound()
-            loss.backward(retain_graph=True)  # Retain the graph
-            # print('train with LBFGS, nll:', loss.item())
-
+            loss = self.negative_lower_bound(X, Y)
+            loss.backward(retain_graph=True)
             return loss
 
         optimizer.step(closure)
-        end_time = time.time()  # 结束时间
+        end_time = time.time()
         training_time = end_time - start_time
         print(f'AutoGP training completed in {training_time:.2f} seconds')
 
 
 if __name__ == "__main__":
-    # np.random.seed(0)
-    # torch.manual_seed(0)
-    # n = 500
-    # X = np.random.rand(n, 1) * 10
-    # Y = np.sin(X) + np.random.randn(n, 1) * 0.1
-    # X = torch.tensor(X, dtype=torch.float64)
-    # Y = torch.tensor(Y, dtype=torch.float64)
-    # Xte = torch.linspace(0, 10, 1000).view(-1, 1)
-    # Yte = torch.sin(Xte)
-    xtr, ytr, xte, yte = data.generate(500, 1000, seed=4, input_dim=1)
-    model = autoGP(xtr, ytr, normal_method="standard", kernel=NeuralKernel, inputwarp=True, deepkernel=False)
-    model.train_auto()
-    model2 = vsgp(xtr, ytr, 50)
-    model2.train_adam(100, 0.1)
-    mean2, _ = model2.forward(xte)
-    mse2 = torch.mean((mean2 - yte) ** 2)
-    mean, var = model.forward(xte)
-    mse = torch.mean((mean - yte) ** 2)
-    print(mse, mse2)
+    from data_sample import generate_example_data as data
+    xtr, ytr, xte, yte = data.generate(500, 500, seed=4, input_dim=1)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    xtr, ytr, xte, yte = xtr.to(device), ytr.to(device), xte.to(device), yte.to(device)
+    import core.GP_CommonCalculation as GP
+    # Normalize the data outside the model
+    normalizer = GP.DataNormalization(method='min_max').to(device)
+    normalizer.fit(xtr, 'x')
+    normalizer.fit(ytr, 'y')
+    normalizer.fit(xte, 'xte')
+    xtr_normalized = normalizer.normalize(xtr, 'x')
+    ytr_normalized = normalizer.normalize(ytr, 'y')
+    xte_normalized = normalizer.normalize(xte, 'xte')
 
-    # for name, param in model.named_parameters():
-    #      print(name, param)
-    # for name, param in model2.named_parameters():
-    #      print(name, param)
-    # print(model.deepkernel)
-    # plt.plot(Xte, mean.detach().numpy(), 'r')
-    # plt.plot(Xte, Yte, 'g')
-    # plt.errorbar(Xte.numpy().reshape(300), mean.detach().numpy().reshape(300),
-    #              yerr=var.sqrt().squeeze().detach().numpy(), fmt='r-.', alpha=0.2)
-    # plt.scatter(X.numpy(), Y.numpy(),color='b',s=10)
-    # plt.show()
+    model = autoGP(input_dim=xtr_normalized.size(1), kernel=NeuralKernel, inputwarp=False,
+                   deepkernel=False).to(device)
+    model.train_auto(xtr_normalized, ytr_normalized)
+
+    mean, var = model.forward(xte_normalized, xtr_normalized, ytr_normalized)
+    mean=normalizer.denormalize(mean, 'y')
+    var=normalizer.denormalize_cov(var, 'y')
+    mse = torch.mean((mean - yte) ** 2)
+    std=torch.sqrt(var)
+    print(f'MSE for autoGP: {mse.item()}')
+    import matplotlib.pyplot as plt
+    plt.plot(xte.cpu().numpy(), yte.cpu().numpy(), label='True')
+    plt.plot(xte.cpu().numpy(), mean.detach().cpu().numpy(), label='Predicted')
+
+    plt.fill_between(xte.cpu().numpy().squeeze(), (mean - 1.96*std).cpu().detach().numpy().squeeze(),
+                     (mean + 1.96*std).cpu().detach().numpy().squeeze(), alpha=0.3,label='95% Confidence Interval')
+    plt.legend()
+    plt.show()
