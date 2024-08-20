@@ -6,10 +6,13 @@ import torch.optim as optim
 import csv
 from matplotlib import pyplot as plt
 import data_sample.generate_example_data as data
-from core.ParametricGP import ParametricGP
+from core.parametricGP import parametricGP
 from core.svgp import svgp
 from core.cigp_baseline import cigp
 from core.sgpr import vsgp
+from torch.utils.data import DataLoader, TensorDataset
+import core.GP_CommonCalculation as GP
+from core.kernel import ARDKernel
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 torch.manual_seed(4)
 
@@ -19,7 +22,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Generate data
 training_sizes = [10, 100, 1000, 2000, 3000]  # Included 10 for calculation
 learning_rate = 0.1
-num_epochs = [200, 200, 800, 800]
+num_epochs = [200, 200, 250, 250]
 
 # num_inducings =[50,100,150,200,250,300]
 all_results = []
@@ -29,6 +32,12 @@ for training_size in training_sizes:
     ytr = ytr.to(device)
     xte = xte.to(device)
     yte = yte.to(device)
+    normalizer = GP.DataNormalization(method='standard')
+    normalizer.fit(xtr, 'x')
+    normalizer.fit(ytr, 'y')
+    xtr_normalized = normalizer.normalize(xtr, 'x')
+    ytr_normalized = normalizer.normalize(ytr, 'y')
+    xte_normalized = normalizer.normalize(xte, 'x')
     # Dynamically adjust num_inducing and batchsize based on training size
     num_inducing = training_size // 40
     num_inducing_for_vsgp = training_size // 10
@@ -37,11 +46,14 @@ for training_size in training_sizes:
     #     # Dynamically adjust num_inducing and batchsize based on training size
     #     batchsize = num_inducing*2
 
+    dataset = TensorDataset(xtr_normalized, ytr_normalized)
+    dataloader = DataLoader(dataset, batch_size=batchsize, shuffle=False)
+
     models = {
-        "CIGP": cigp(xtr, ytr).to(device),
-        "VSGP": vsgp(xtr, ytr, num_inducing_for_vsgp).to(device),
-        "SVIGP": svgp(xtr, ytr, num_inducing=num_inducing, batchsize=batchsize).to(device),
-        "ParametricGP": ParametricGP(xtr, ytr, num_inducing=num_inducing, batchsize=batchsize).to(device)
+        "CIGP": cigp().to(device),
+        "VSGP": vsgp(kernel=ARDKernel(1),num_inducing=num_inducing_for_vsgp,input_dim=xtr_normalized.size(1)).to(device),
+        "SVIGP": svgp(num_inducing=num_inducing, input_dim=xtr_normalized.size(1), num_data=training_size).to(device),
+        "ParametricGP": parametricGP(kernel=ARDKernel(1), input_dim=1, num_inducing=num_inducing, device=device)
     }
 
     results = {}
@@ -53,25 +65,27 @@ for training_size in training_sizes:
 
         start_time = time.time()
         if isinstance(num_epochs, list):
-            num_epochs_current = num_epochs[
-                num_epochs_index]  # num_epochs2 is the number of epochs for the current model
+            num_epochs_current = num_epochs[num_epochs_index]  # num_epochs2 is the number of epochs for the current model
         else:
             num_epochs_current = num_epochs
         for i in range(num_epochs_current):
 
             optimizer.zero_grad()
             if model_name in ["ParametricGP", "SVIGP"]:
-                x_batch, y_batch = model.new_batch()
-                loss = model.loss_function(x_batch, y_batch)
+                for X_batch, Y_batch in dataloader:
+                    loss = model.loss_function(X_batch, Y_batch)
             elif model_name in ["VSGP", "CIGP"]:
-                loss = model.negative_log_likelihood()
+                loss = model.negative_log_likelihood(xtr_normalized,ytr_normalized)
 
             loss.backward()
             optimizer.step()
             if i % 100 == 0:
                 print(f'{model_name} - Training Size: {training_size} - Epoch: {i} - Loss: {loss.item()}')
         end_time = time.time()
-        output = model.forward(xte)
+        if model_name in ["ParametricGP", "SVIGP"]:
+            output = model.forward(xte_normalized)
+        elif model_name in ["VSGP", "CIGP"]:
+            output = model.forward(xtr_normalized, ytr_normalized, xte_normalized)
         mse = torch.mean((yte - output[0]).pow(2))
         mse_values.append(mse.item())
         iteration_time = (end_time - start_time) * 1000  # in milliseconds
@@ -102,9 +116,9 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
-## Generate a unique filename with a timestamp, this will save all results to a new CSV file without overwriting the previous ones
-# timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-# filename = f'results_{timestamp}.csv'
+# Generate a unique filename with a timestamp, this will save all results to a new CSV file without overwriting the previous ones
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = f'results_{timestamp}.csv'
 
 # Save all results to CSV
 filename = 'results1.csv'

@@ -7,25 +7,24 @@ JITTER= 1e-3
 PI= 3.1415
 torch.set_default_dtype(torch.float64)
 class autoGP(nn.Module):
-
     def __init__(self, input_dim,device, kernel=None, inputwarp=False, num_inducing=None, deepkernel=False, training_size=None):
         super(autoGP, self).__init__()
 
         # GP hyperparameters
-        self.log_beta = nn.Parameter(torch.ones(1) * 0).to(device)  # Initial noise level
+        self.log_beta = nn.Parameter(torch.ones(1) * 0) # Initial noise level
 
         self.inputwarp = inputwarp
         self.deepkernel = deepkernel
         self.device=device
         # Kernel setup
         if kernel is None:
-            self.kernel = NeuralKernel(input_dim).to(device)
+            self.kernel = NeuralKernel(input_dim)
         else:
-            self.kernel = kernel(input_dim).to(device)
+            self.kernel = kernel(input_dim)
 
         if input_dim > 2:
             self.deepkernel = True
-            self.kernel = kernel(input_dim).to(device)
+            self.kernel = kernel(input_dim)
 
         if self.deepkernel:
             self.FeatureExtractor = torch.nn.Sequential(
@@ -44,8 +43,8 @@ class autoGP(nn.Module):
         if num_inducing is None and training_size is not None:
             num_inducing = training_size * input_dim // 10
         if num_inducing is None and training_size is None:
-            num_inducing = 50  # Default value if not specified
-        self.xm = nn.Parameter(torch.rand((num_inducing, input_dim))).to(device)  # Inducing points
+            num_inducing = 100  # Default value if not specified
+        self.xm = nn.Parameter(torch.rand((num_inducing, input_dim)))# Inducing points
 
     def negative_lower_bound(self, X, Y):
         """Negative lower bound as the loss function to minimize."""
@@ -151,21 +150,22 @@ class autoGP(nn.Module):
 
 if __name__ == "__main__":
     from data_sample import generate_example_data as data
-    xtr, ytr, xte, yte = data.generate(500, 500, seed=4, input_dim=1)
-    device = torch.device('cpu')
+    xtr, ytr, xte, yte = data.generate(500, 500, seed=1, input_dim=1)
+    device = torch.device('cuda')
     xtr, ytr, xte, yte = xtr.to(device), ytr.to(device), xte.to(device), yte.to(device)
 
     # Normalize the data outside the model
-    normalizer = GP.DataNormalization(method='standard').to(device)
+    normalizer = GP.DataNormalization(method='min_max').to(device)
     normalizer.fit(xtr, 'x')
     normalizer.fit(ytr, 'y')
-    #normalizer.fit(xte, 'x')
+    normalizer.fit(xte, 'xte')
     xtr_normalized = normalizer.normalize(xtr, 'x')
     ytr_normalized = normalizer.normalize(ytr, 'y')
-    xte_normalized = normalizer.normalize(xte, 'x')
+    xte_normalized = normalizer.normalize(xte, 'xte')
 
-    model = autoGP(input_dim=xtr_normalized.size(1),device=device, kernel=NeuralKernel, inputwarp=False,
-                   deepkernel=False)
+    model = autoGP(input_dim=xtr_normalized.size(1), device=device, kernel=NeuralKernel, inputwarp=True,
+                   deepkernel=False).to(device)
+
     model.train_auto(xtr_normalized, ytr_normalized)
 
     mean, var = model.forward(xtr_normalized, ytr_normalized, xte_normalized)
@@ -174,6 +174,7 @@ if __name__ == "__main__":
     mse = torch.mean((mean - yte) ** 2)
     std=torch.sqrt(var)
     print(f'MSE for autoGP: {mse.item()}')
+    print(model.warp.a,model.warp.b)
     import matplotlib.pyplot as plt
     plt.plot(xte.cpu().numpy(), yte.cpu().numpy(), label='True')
     plt.plot(xte.cpu().numpy(), mean.detach().cpu().numpy(), label='Predicted')

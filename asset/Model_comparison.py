@@ -118,10 +118,11 @@ for X, y in data_gen.datasets:
     # Model 2: vsgp
     model2 = autoGP(input_dim=1,kernel=NeuralKernel, inputwarp=True, deepkernel=False, device=device)
     model2.train_auto(X_train_normalized, y_train_normalized)
-    y_pred_model2, _ = model1.forward(X_train_normalized,y_train_normalized,X_test_normalized)
+    y_pred_model2, _ = model2.forward(X_train_normalized,y_train_normalized,X_test_normalized)
     y_pred_model2 = normalizer.denormalize(y_pred_model2, 'y')
     r2_model2 = r2_score(y_test.detach(), y_pred_model2.detach())
     mse2 = torch.mean((y_pred_model2 - y_test) ** 2)
+    print(model2.warp.a,model2.warp.b)
     print("SGP R^2:", r2_model2, mse2)
     # Store R² scores
     r2_scores_model1.append(r2_model1)

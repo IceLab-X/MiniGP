@@ -7,7 +7,7 @@ from core.kernel import ARDKernel, NeuralKernel, PeriodicKernel, MaternKernel, P
 import numpy as np
 import matplotlib.pyplot as plt
 import data_sample.generate_example_data as data
-import GP_CommonCalculation as GP
+import core.GP_CommonCalculation as GP
 
 JITTER = 1e-6
 EPS = 1e-10
@@ -16,7 +16,7 @@ torch.set_default_dtype(torch.float64)
 
 
 class cigp(nn.Module):
-    def __init__(self, kernel=ARDKernel(1), log_beta=None, device='cpu', K_inv_method='cholesky'):
+    def __init__(self, kernel=ARDKernel(1), log_beta=None, K_inv_method='cholesky'):
         super(cigp, self).__init__()
         # GP hyperparameters
         if log_beta is None:
@@ -25,12 +25,11 @@ class cigp(nn.Module):
             self.log_beta = nn.Parameter(log_beta)
         self.kernel = kernel
         self.K_inv_method = K_inv_method
-        self.device = device
 
     def forward(self, xtr, ytr, xte):
         Sigma = self.kernel(xtr, xtr) + self.log_beta.exp().pow(-1) * torch.eye(xtr.size(0),
-                                                                                device=self.device) \
-                + JITTER * torch.eye(xtr.size(0), device=self.device)
+                                                                                device=self.log_beta.device) \
+                + JITTER * torch.eye(xtr.size(0), device=self.log_beta.device)
 
         k_xt = self.kernel(xtr, xte)
         k_tt = self.kernel(xte, xte)
@@ -42,7 +41,7 @@ class cigp(nn.Module):
 
     def negative_log_likelihood(self, xtr, ytr):
         Sigma = self.kernel(xtr, xtr) + self.log_beta.exp().pow(-1) * torch.eye(
-            xtr.size(0), device=self.device) + JITTER * torch.eye(xtr.size(0), device=self.device)
+            xtr.size(0), device=self.log_beta.device) + JITTER * torch.eye(xtr.size(0), device=self.log_beta.device)
 
         return -GP.Gaussian_log_likelihood(ytr, Sigma, Kinv_method=self.K_inv_method)
 

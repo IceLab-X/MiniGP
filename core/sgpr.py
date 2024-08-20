@@ -17,7 +17,7 @@ torch.set_default_dtype(torch.float64)
 
 
 class vsgp(nn.Module):
-    def __init__(self, kernel, num_inducing, input_dim, log_beta=None, device='cpu'):
+    def __init__(self, kernel, num_inducing, input_dim, log_beta=None):
         super(vsgp, self).__init__()
         # GP hyperparameters
         if log_beta is None:
@@ -25,23 +25,22 @@ class vsgp(nn.Module):
         else:
             self.log_beta = nn.Parameter(log_beta)
 
-        self.device = device
 
         # Inducing points
         self.kernel = kernel
-        self.xm = nn.Parameter(torch.rand((num_inducing, input_dim), dtype=torch.float64).to(device))  # Inducing points
+        self.xm = nn.Parameter(torch.rand((num_inducing, input_dim), dtype=torch.float64))  # Inducing points
 
     def negative_log_likelihood(self, X, Y):
         """Negative lower bound as the loss function to minimize."""
         n = X.size(0)
-        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), device=self.device)
+        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), device=self.xm.device)
         L = torch.linalg.cholesky(K_mm)
         K_mn = self.kernel(self.xm, X)
         K_nn = self.kernel(X, X)
         A = torch.linalg.solve_triangular(L, K_mn, upper=False)
         A = A * torch.sqrt(self.log_beta.exp())
         AAT = A @ A.t()
-        B = AAT + (1 + JITTER) * torch.eye(self.xm.size(0), device=self.device)
+        B = AAT + (1 + JITTER) * torch.eye(self.xm.size(0), device=self.xm.device)
         LB = torch.linalg.cholesky(B)
 
         c = torch.linalg.solve_triangular(LB, A @ Y, upper=False)
@@ -57,7 +56,7 @@ class vsgp(nn.Module):
 
     def optimal_inducing_point(self, X, Y):
         """Compute optimal inducing points mean and covariance."""
-        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), device=self.device)
+        K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), device=self.xm.device)
         L = torch.linalg.cholesky(K_mm)
         L_inv = torch.inverse(L)
         K_mm_inv = L_inv.t() @ L_inv

@@ -13,12 +13,12 @@ torch.manual_seed(4)
 
 
 class svgp(nn.Module):
-    def __init__(self, num_inducing, input_dim, device='cpu'):
+    def __init__(self, num_inducing, input_dim,num_data):
         super(svgp, self).__init__()
 
         self.num_inducing = num_inducing
         self.kernel = ARDKernel(input_dim)
-
+        self.num_data = num_data
         # Inducing points
         self.xm = nn.Parameter(torch.rand(self.num_inducing, input_dim, dtype=torch.float64))  # Inducing points
         self.qu_mean = nn.Parameter(torch.zeros(self.num_inducing, 1, dtype=torch.float64))
@@ -27,7 +27,7 @@ class svgp(nn.Module):
         # Gaussian noise
         self.log_beta = nn.Parameter(torch.ones(1, dtype=torch.float64) * 0)
 
-    def loss_function(self, X, Y, num_data):
+    def loss_function(self, X, Y):
         K_mm = self.kernel(self.xm, self.xm) + JITTER * torch.eye(self.xm.size(0), dtype=torch.float64,
                                                                   device=self.xm.device)
         Lm = torch.linalg.cholesky(K_mm)
@@ -63,7 +63,7 @@ class svgp(nn.Module):
         logdetKmm = 2 * Lm.diag().abs().log().sum()
         KL = 0.5 * (K_mm_inv @ qu_S).diag().sum(dim=0).view(-1, 1) + 0.5 * (self.qu_mean.t() @ K_mm_inv @ self.qu_mean) \
              - 0.5 * logdetS + 0.5 * logdetKmm - 0.5 * self.num_inducing
-        variational_loss = KL - likelihood_sum * num_data / batch_size
+        variational_loss = KL - likelihood_sum * self.num_data / batch_size
         return variational_loss
 
     def forward(self, Xte):
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     num_inducing = 100
     learning_rate = 0.1
     num_epochs = 250  # Adjust as needed
-    model = svgp(num_inducing=num_inducing, input_dim=xtr_normalized.size(1), device=device).to(device)
+    model = svgp(num_inducing=num_inducing, input_dim=xtr_normalized.size(1), num_data=num_data).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     import time
@@ -123,7 +123,7 @@ if __name__ == '__main__':
             start_time = time.time()
 
             optimizer.zero_grad()
-            loss = model.loss_function(X_batch, Y_batch, num_data)
+            loss = model.loss_function(X_batch, Y_batch)
             loss.backward()
             optimizer.step()
 

@@ -26,7 +26,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import matplotlib.pyplot as plt
-import GP_CommonCalculation as GP
+import core.GP_CommonCalculation as GP
 
 JITTER = 1e-6
 PI = 3.1415
