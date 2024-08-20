@@ -38,22 +38,18 @@ We do not have a pip package yet. You can install it by cloning the repository a
 - **asset:** This folder contains the python scripts for the model comparison and regression test. As well as the result in both .csv and .png format. For more details, please refer to the README.md in the folder.
 
   - **Model_comparison.py:** A Python script that compares the performance of different GP models on various synthetic datasets, including periodic, warped, and polynomial. The default models are set as autoGP and its base model vsgp.
-    <img src="https://github.com/IceLab-X/Mini-GP/blob/ccedae354b7edc557bbc6621cb170685727bc6f1/asset/Model_comparison_autoGP.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
-    <img src="https://github.com/IceLab-X/Mini-GP/blob/ccedae354b7edc557bbc6621cb170685727bc6f1/asset/Model_comparison_warped.png" alt="Model Comparison for autoGP and vsgp" width="400"/>
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/29a021305924757376b25905c75b36bdbdfc5017/asset/Model_comparison_autoGP.png"/>
 
 
   - **Regression_test.py:** A Python script that tests the accuracy and training speed on different sizes of training sets. The results are stored in result1.csv and result2.csv.
 
   - **result1.csv:** The result of the regression test for different training set sizes.
 
-    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Accuracy.PNG" alt="Model Comparison -- Accuracy" width="400"/>
-    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Speed.PNG" alt="Model Comparison -- Speed" width="400"/>
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/29a021305924757376b25905c75b36bdbdfc5017/asset/Model_comparison_result1.png"/>
 
   - **result2.csv:** The result of the regression test for different numbers of inducing points.
 
-    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Accuracy2.PNG" alt="Model Comparison -- Accuracy 2" width="400"/>
-    <img src="https://github.com/IceLab-X/Mini-GP/blob/fddb23cc594b83e54db2203f387f78ed6f3f92a2/asset/Model_comparison%20Speed2.PNG" alt="Model Comparison -- Speed 2" width="400"/>
-
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/29a021305924757376b25905c75b36bdbdfc5017/asset/Model_comparison_result2.png"/>
     
 ## Contribution
 We welcome any contribution to this project. Please feel free to open an issue or pull request. We are happy to discuss any ideas with you. 
