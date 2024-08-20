@@ -1,7 +1,7 @@
 import torch
 import os
 import sys
-#sys.path.append('/Users/zidongchen/PycharmProjects/MiniGP/Mini-GP')
+# sys.path.append('/Users/zidongchen/PycharmProjects/MiniGP/Mini-GP')
 import torch.nn as nn
 from core.kernel import ARDKernel, NeuralKernel, PeriodicKernel, MaternKernel, PolynomialKernel
 import numpy as np

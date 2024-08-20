@@ -25,7 +25,6 @@ class vsgp(nn.Module):
         else:
             self.log_beta = nn.Parameter(log_beta)
 
-
         # Inducing points
         self.kernel = kernel
         self.xm = nn.Parameter(torch.rand((num_inducing, input_dim), dtype=torch.float64))  # Inducing points

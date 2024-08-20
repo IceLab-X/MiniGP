@@ -20,18 +20,6 @@ torch.manual_seed(4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.set_default_dtype(torch.float64)
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-import numpy as np
-import matplotlib.pyplot as plt
-import core.GP_CommonCalculation as GP
-
-JITTER = 1e-6
-PI = 3.1415
-torch.set_default_dtype(torch.float64)
-
 
 class parametricGP(nn.Module):
     def __init__(self, kernel, input_dim, num_inducing, device='cpu'):
@@ -48,7 +36,6 @@ class parametricGP(nn.Module):
 
         # Gaussian noise
         self.log_beta = nn.Parameter(torch.ones(1, dtype=torch.float64).to(device) * -4)
-
 
     def predict(self, xtr):
         K_mm = self.kernel(self.xm, self.xm) + self.jitter * torch.eye(self.xm.size(0), dtype=torch.float64).to(
@@ -69,11 +56,11 @@ class parametricGP(nn.Module):
         y_var = y_var.view(-1, 1)
         return y_pred, y_var
 
-    def loss_function(self,xtr,ytr):
+    def loss_function(self, xtr, ytr):
         ytr_pred = self.predict(xtr)
         n = ytr.size(0)
         loss = 0.5 * n * (
-                    torch.log(self.log_beta.exp().pow(-1)) + torch.log(2 * torch.tensor(PI, dtype=torch.float64))) + \
+                torch.log(self.log_beta.exp().pow(-1)) + torch.log(2 * torch.tensor(PI, dtype=torch.float64))) + \
                0.5 * (ytr - ytr_pred).pow(2).sum() / self.log_beta.exp().pow(-1)
         return loss
 
@@ -107,7 +94,6 @@ if __name__ == '__main__':
 
     loss_values = []
     iteration_times = []
-
 
     # Prepare data loader for batching
     dataset = TensorDataset(xtr_normalized, ytr_normalized)

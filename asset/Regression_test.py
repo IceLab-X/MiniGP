@@ -13,6 +13,7 @@ from core.sgpr import vsgp
 from torch.utils.data import DataLoader, TensorDataset
 import core.GP_CommonCalculation as GP
 from core.kernel import ARDKernel
+
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 torch.manual_seed(4)
 
@@ -51,7 +52,8 @@ for training_size in training_sizes:
 
     models = {
         "CIGP": cigp().to(device),
-        "VSGP": vsgp(kernel=ARDKernel(1),num_inducing=num_inducing_for_vsgp,input_dim=xtr_normalized.size(1)).to(device),
+        "VSGP": vsgp(kernel=ARDKernel(1), num_inducing=num_inducing_for_vsgp, input_dim=xtr_normalized.size(1)).to(
+            device),
         "SVIGP": svgp(num_inducing=num_inducing, input_dim=xtr_normalized.size(1), num_data=training_size).to(device),
         "ParametricGP": parametricGP(kernel=ARDKernel(1), input_dim=1, num_inducing=num_inducing, device=device)
     }
@@ -65,7 +67,8 @@ for training_size in training_sizes:
 
         start_time = time.time()
         if isinstance(num_epochs, list):
-            num_epochs_current = num_epochs[num_epochs_index]  # num_epochs2 is the number of epochs for the current model
+            num_epochs_current = num_epochs[
+                num_epochs_index]  # num_epochs2 is the number of epochs for the current model
         else:
             num_epochs_current = num_epochs
         for i in range(num_epochs_current):
@@ -75,7 +78,7 @@ for training_size in training_sizes:
                 for X_batch, Y_batch in dataloader:
                     loss = model.loss_function(X_batch, Y_batch)
             elif model_name in ["VSGP", "CIGP"]:
-                loss = model.negative_log_likelihood(xtr_normalized,ytr_normalized)
+                loss = model.negative_log_likelihood(xtr_normalized, ytr_normalized)
 
             loss.backward()
             optimizer.step()

@@ -31,8 +31,8 @@ class NeuralKernel(nn.Module):
         self.kernels = nn.ModuleDict({
             'RationalQuadratic': RationalQuadraticKernel(input_dim),
             'linear': LinearKernel(input_dim),
-            'periodic': PeriodicKernel(input_dim),
-            'RBF': RBFKernel(input_dim)
+            'periodic': PeriodicKernel(),
+            'ARD': ARDKernel(input_dim)
         })
         self.softplus = nn.Softplus()
         # 定义核函数的可学习权重
@@ -40,7 +40,7 @@ class NeuralKernel(nn.Module):
             'RationalQuadratic': nn.Parameter(torch.tensor(1.0)),
             'linear': nn.Parameter(torch.tensor(1.0)),
             'periodic': nn.Parameter(torch.tensor(1.0)),
-            'RBF': nn.Parameter(torch.tensor(1.0))
+            'ARD': nn.Parameter(torch.tensor(1.0))
         })
 
     def forward(self, x1, x2):
@@ -340,32 +340,39 @@ class SquaredExponentialKernel(nn.Module):
     # need to check if this is correct
 
 
+import torch
+import torch.nn as nn
+
 class RationalQuadraticKernel(nn.Module):
     """
-    Rational Quadratic kernel module with scalar length scale.
+    RQ (Rational Quadratic) kernel module.
 
     Args:
-        length_scale (float): The length scale value. Default is 1.0.
-        signal_variance (float): The signal variance value. Default is 1.0.
-        alpha (float): The alpha value. Default is 1.0.
+        input_dim (int): The input dimension.
+        initial_log_length_scale (float): The initial length scale value. Default is 0.
+        initial_log_signal_variance (float): The initial signal variance value. Default is 0.
+        initial_log_alpha (float): The initial alpha value (related to the shape of the kernel). Default is 0.
+        input_dtype (torch.dtype): The data type of the input. Default is torch.float64.
 
     Attributes:
-        length_scale (nn.Parameter): The length scale.
-        signal_variance (nn.Parameter): The signal variance.
-        alpha (nn.Parameter): The alpha value.
+        log_length_scale (nn.Parameter): The length scales for each dimension.
+        log_signal_variance (nn.Parameter): The signal variance.
+        log_alpha (nn.Parameter): The alpha parameter.
+        eps (float): A small constant to prevent division by zero.
 
     """
 
-    def __init__(self, input_dim, length_scales=1.0, signal_variance=1.0, alpha=1.0, eps=EPS):
-        super(RationalQuadraticKernel, self).__init__()
-        self.length_scales = nn.Parameter(torch.ones(input_dim) * length_scales)
-        self.signal_variance = nn.Parameter(torch.tensor([signal_variance]))
-        self.alpha = nn.Parameter(torch.tensor([alpha]))
-        self.eps = eps
+    def __init__(self, input_dim, initial_log_length_scale=0.0, initial_log_signal_variance=0.0,
+                 initial_log_alpha=0.0, input_dtype=torch.float64):
+        super().__init__()
+
+        self.length_scales = nn.Parameter(torch.ones(input_dim, dtype=input_dtype) * initial_log_length_scale)
+        self.signal_variance = nn.Parameter(torch.tensor([initial_log_signal_variance], dtype=input_dtype))
+        self.alpha = nn.Parameter(torch.tensor([initial_log_alpha], dtype=input_dtype))
 
     def forward(self, x1, x2):
         """
-        Compute the covariance matrix using the rational quadratic kernel.
+        Compute the covariance matrix using the RQ kernel.
 
         Args:
             x1 (torch.Tensor): The first input tensor.
@@ -375,13 +382,18 @@ class RationalQuadraticKernel(nn.Module):
             torch.Tensor: The covariance matrix.
 
         """
-        length_scales = torch.abs(self.length_scales) + self.eps
-        alpha = torch.abs(self.alpha) + self.eps
+        device = x1.device
+        length_scales = torch.exp(self.length_scales).to(device)
+        signal_variance = self.signal_variance.exp().to(device)
+        alpha = self.alpha.exp().to(device)
 
         scaled_x1 = x1 / length_scales
         scaled_x2 = x2 / length_scales
+
         sqdist = torch.cdist(scaled_x1, scaled_x2, p=2) ** 2
-        return self.signal_variance.pow(2) * torch.pow(1 + 0.5 * sqdist / alpha, -alpha)
+
+        return signal_variance * (1 + 0.5 * sqdist / alpha).pow(-alpha)
+
 
 
 class MaternKernel_scalarLengthScale(nn.Module):

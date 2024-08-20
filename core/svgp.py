@@ -13,7 +13,7 @@ torch.manual_seed(4)
 
 
 class svgp(nn.Module):
-    def __init__(self, num_inducing, input_dim,num_data):
+    def __init__(self, num_inducing, input_dim, num_data):
         super(svgp, self).__init__()
 
         self.num_inducing = num_inducing
