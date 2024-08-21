@@ -82,6 +82,8 @@ class vsgp(nn.Module):
 
         return mean, var_diag
 
+
+
     def train_adam(self, X, Y, niteration=10, lr=0.1):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         optimizer.zero_grad()

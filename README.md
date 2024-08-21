@@ -7,7 +7,7 @@ Despite that there are many successful GP libraries, such as GPy, GPflow, and GP
 Thus we want to create a simple and easy-to-use GP library that can be used by anyone. MiniGP is designed to be simple and easy to understand. It is a great tool for educational purposes. We also try to make it easy for anyone to use without a lot of background knowledge of GP.
 
 ## Useful and practical GP Models:
-- [CIGP](https://github.com/IceLab-X/Mini-GP/blob/64873663f7efb63de9a6f33d1de207e7a2db1f5d/core/cigp.py): simple yet accurate multi-output regression model with complexity $O(n^3 d)$ for n training points with d outputs.
+- [CIGP](https://github.com/IceLab-X/Mini-GP/blob/6899d3fb947293122d758fb6ef4dd4799a799eac/core/cigp.py): simple yet accurate multi-output regression model with complexity $O(n^3 d)$ for n training points with d outputs.
 - [NeuralKernel](https://github.com/IceLab-X/Mini-GP/blob/64873663f7efb63de9a6f33d1de207e7a2db1f5d/GPmodels_Classic/04_neuralKernelGP.ipynb): automatic kernel learning with neural network structured kernel.
 - [GPU&GP](https://github.com/IceLab-X/Mini-GP/blob/64873663f7efb63de9a6f33d1de207e7a2db1f5d/GPmodels_Advance/01_GP&GPU_GPTutorial.ipynb): Inference method that leverage GPU acceleration for GP model. This can be used in sparse GP model to speed up the computation for large inducing point number.
 - [AutoGP](https://github.com/IceLab-X/Mini-GP/blob/64873663f7efb63de9a6f33d1de207e7a2db1f5d/core/autoGP.py): A powerful GP model that incorporates a learnable input warp module, a deep neural kernel, and Sparse Gaussian Processes.
@@ -36,7 +36,7 @@ More details can be found in the [README](https://github.com/IceLab-X/Mini-GP/bl
   - **GPmodels_Advance:** Advance GP models, including GP with GPU acceleration, and automatic GP.
     - 01_GP&GPU: a GP model leverage GPU acceleration.
     - 01_GP&GPU_GPTutorial: Algorithms for GP leverage GPU acceleration.
-    - 02_DynamicModel_GPTutorial: GP dynamic model in Chinese. [Gaussian Process Dynamical Models](https://www.dgp.toronto.edu/~jmwang/gpdm/nips05final.pdf) 
+    - 02_DynamicModel_GPTutorial: GP dynamic model in Chinese. ([Gaussian Process Dynamical Models](https://www.dgp.toronto.edu/~jmwang/gpdm/nips05final.pdf) )
     
   - **GPmodels_Classic:** basic GP model and its variation, such as DeepKernel GP, InputWarp GP . It demonstrates how to build a GP model with the GP_CommonCalculation.
     - 01_simpleGP_GPTutorial: simple GP tutorial in both English and Chinese. This is a good starting point for beginners.
