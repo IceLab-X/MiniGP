@@ -8,7 +8,7 @@ print(torch.__version__)
 # I use torch (1.11.0) for this work. lower version may not work.
 from core.kernel import ARDKernel
 import os
-from core.cigp_baseline import cigp
+from core.simpleGP import cigp
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # Fixing strange error if run in MacOS
 JITTER = 1e-6

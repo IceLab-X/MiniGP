@@ -7,9 +7,9 @@ import csv
 from matplotlib import pyplot as plt
 import data_sample.generate_example_data as data
 from core.parametricGP import parametricGP
-from core.svgp import svgp
-from core.cigp_baseline import cigp
-from core.sgpr import vsgp
+from core.stochasticVariationalGP import svgp
+from core.simpleGP import cigp
+from core.variationalSparseGP import vsgp
 from torch.utils.data import DataLoader, TensorDataset
 import core.GP_CommonCalculation as GP
 from core.kernel import ARDKernel

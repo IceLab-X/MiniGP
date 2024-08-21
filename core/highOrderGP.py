@@ -1,3 +1,4 @@
+## This is the implementation of the high order GP model.
 import numpy as np
 import torch
 import torch.nn as nn
@@ -5,7 +6,6 @@ import kernel as kernel
 import tensorly
 import math
 import os
-import matplotlib.pyplot as plt
 import unittest
 from tensorly import tucker_to_tensor
 

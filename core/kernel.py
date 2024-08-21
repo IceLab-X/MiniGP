@@ -30,16 +30,16 @@ class NeuralKernel(nn.Module):
         # 定义核函数
         self.kernels = nn.ModuleDict({
             'RationalQuadratic': RationalQuadraticKernel(input_dim),
-            'linear': LinearKernel(input_dim),
-            'periodic': PeriodicKernel(),
+            'Linear': LinearKernel(input_dim),
+            'Periodic': PeriodicKernel(),
             'ARD': ARDKernel(input_dim)
         })
         self.softplus = nn.Softplus()
         # 定义核函数的可学习权重
         self.weights = nn.ParameterDict({
             'RationalQuadratic': nn.Parameter(torch.tensor(1.0)),
-            'linear': nn.Parameter(torch.tensor(1.0)),
-            'periodic': nn.Parameter(torch.tensor(1.0)),
+            'Linear': nn.Parameter(torch.tensor(1.0)),
+            'Periodic': nn.Parameter(torch.tensor(1.0)),
             'ARD': nn.Parameter(torch.tensor(1.0))
         })
 

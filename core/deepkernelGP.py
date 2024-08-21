@@ -1,6 +1,3 @@
-# Conditional independent Gaussian process (CIGP) for vector output regression based on pytorch
-# 
-# CIGP use a single kernel for each output. Thus the log likelihood is simply a sum of the log likelihood of each output.
 
 # Author: Wei W. Xing (wxing.me)
 # Email: wayne.xingle@gmail.com

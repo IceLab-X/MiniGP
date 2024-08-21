@@ -1,3 +1,7 @@
+# Author: Zidong Chen
+# Date: 2024/07/17
+# This is the implementation of the Stochastic Variational Gaussian Process (SVGP) model. Key references: GP for big data
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -10,7 +14,6 @@ import data_sample.generate_example_data as data
 JITTER = 1e-3
 PI = 3.1415
 torch.manual_seed(4)
-
 
 class svgp(nn.Module):
     def __init__(self, num_inducing, input_dim, num_data):
