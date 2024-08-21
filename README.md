@@ -35,6 +35,7 @@ More details can be found in the [README](https://github.com/IceLab-X/Mini-GP/bl
   
   - **GPmodels_Advance:** Advance GP models, including GP with GPU acceleration, and automatic GP.
     - 01_GP&GPU_GPTutorial: Algorithms for GP leverage GPU acceleration.
+    - 01_GP&GPU: Algorithms for GP leverage GPU acceleration.
     - 02_DynamicModel_GPTutorial: GP dynamic model in Chinese. ([Gaussian Process Dynamical Models](https://www.dgp.toronto.edu/~jmwang/gpdm/nips05final.pdf) )
     
   - **GPmodels_Classic:** basic GP model and its variation, such as DeepKernel GP, InputWarp GP . It demonstrates how to build a GP model with the GP_CommonCalculation.
@@ -56,13 +57,12 @@ Processes](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf))
 - **Bayesian_Optimization:** This folder contains useful tools for Bayesian optimization
     - acq: A Python scripy including several widely used acquisition functions. 
     - BO_demo: A demonstration of the process of Bayesian optimization.
-- **asset:** This folder contains the python scripts for the model comparison and regression test. As well as the result in both .csv and .png format. For more details, please refer to the README.md in the folder.
 
-  - **Model_comparison.py:** A Python script that compares the performance of different GP models on various synthetic datasets, including periodic, warped, and polynomial. The default models are set as autoGP and its base model vsgp.
+- **experiment:** This folder contains the python scripts of the experiment.
+  
+- **asset:** This folder contains the result of the experiment in both .csv and .png format. 
+
     <img src="https://github.com/IceLab-X/Mini-GP/blob/29a021305924757376b25905c75b36bdbdfc5017/asset/Model_comparison_autoGP.png"/>
-
-
-  - **Regression_test.py:** A Python script that tests the accuracy and training speed on different sizes of training sets. The results are stored in result1.csv and result2.csv.
 
   - **result1.csv:** The result of the regression test for different training set sizes.
 

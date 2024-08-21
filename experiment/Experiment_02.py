@@ -124,7 +124,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f'results_{timestamp}.csv'
 
 # Save all results to CSV
-filename = 'results1.csv'
+filename = '../asset/results1.csv'
 with open(filename, 'w', newline='') as csvfile:
     fieldnames = ['Model', 'Training Size', 'Batch Size', 'Number of Inducing Points', 'Iteration',
                   'Training Time per Iteration (MilliSeconds)', 'MSE']
