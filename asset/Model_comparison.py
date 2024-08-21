@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from core.autoGP import autoGP
-from core.variationalSparseGP import vsgp
+from core.sgpr import vsgp
 from core.kernel import ARDKernel, NeuralKernel
 import core.GP_CommonCalculation as GP
 torch.set_default_dtype(torch.float64)
