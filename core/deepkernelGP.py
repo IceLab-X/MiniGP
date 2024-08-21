@@ -141,7 +141,7 @@ if __name__ == "__main__":
     xte_normalized = normalizer.normalize(xte, 'x')
 
     # Define the layer structure for the neural network
-    layer_structure = [2,20,10, 2]
+    layer_structure = [2,20,40,10, 2]
 
     # Initialize and train the model
     model = deepkernelGP(input_dim=2, layer_structure=layer_structure)

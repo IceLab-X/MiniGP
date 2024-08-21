@@ -53,6 +53,58 @@ def conjugate_gradient(A, b, x0=None, tol=1e-1, max_iter=1000):
 
     return x
 
+def lanc_quad_logdet(A, m=10, nvecs=10):
+    """
+    Estimate the log-determinant of a symmetric positive definite matrix using
+    the Stochastic Lanczos Quadrature (SLQ) method.
+
+    Parameters:
+    A (torch.Tensor): The symmetric positive definite input matrix.
+    m (int): Number of Lanczos steps (degree).
+    nvecs (int): Number of starting vectors.
+
+    Returns:
+    z1 mean: The average of estimates for starting vectors.
+    """
+    n = A.shape[0]
+    z1 = torch.zeros(nvecs, dtype=A.dtype, device=A.device)
+
+    for ii in range(nvecs):
+        w = torch.sign(torch.randn(n, dtype=A.dtype, device=A.device))  # Random Rademacher vector
+        v0 = w / (torch.norm(w)+EPS)
+
+        # Lanczos algorithm
+        V = torch.zeros((n, m), dtype=A.dtype, device=A.device)
+        alpha = torch.zeros(m, dtype=A.dtype, device=A.device)
+        beta = torch.zeros(m - 1, dtype=A.dtype, device=A.device)
+        V[:, 0] = v0.clone()
+
+        w = A @ V[:, 0].clone()
+
+        alpha[0] = torch.dot(V[:, 0].clone(), w)
+        w = w - alpha[0].clone() * V[:, 0].clone()
+
+        for j in range(1, m):
+            beta[j - 1] = torch.norm(w)
+            if beta[j - 1] != 0:
+                V[:, j] = w / (beta[j - 1].clone()+EPS)
+                w = A @ V[:, j].clone() - beta[j - 1].clone() * V[:, j - 1].clone()
+                alpha[j] = torch.dot(V[:, j].clone(), w)
+                w = w - alpha[j].clone() * V[:, j].clone()
+
+        H = torch.diag(alpha) + torch.diag(beta, 1) + torch.diag(beta, -1)
+
+        eigvals, eigvecs = torch.linalg.eig(H)
+        eigvals, eigvecs = eigvals.real, eigvecs.real
+
+        theta = torch.abs(eigvals)
+        gamma2 = eigvecs[0, :] ** 2
+
+        # Sum of gamma2 * log(theta)
+        count = torch.sum(gamma2 * torch.log(theta))
+        z1[ii] = (count * n).real
+
+    return z1.mean()
 
 def compute_inverse_and_log_det_positive_eigen(matrix):
     """
@@ -92,7 +144,7 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky'):
         mean (torch.Tensor): The mean of the Gaussian distribution.
         cov (torch.Tensor): The covariance matrix of the Gaussian distribution.
         Kinv_method (str, optional): The method to compute the inverse of the covariance matrix.
-            Defaults to 'cholesky3'.
+            Defaults to 'cholesky'.
 
     Returns:
         torch.Tensor: The log-likelihood of the Gaussian distribution.
@@ -121,23 +173,23 @@ def Gaussian_log_likelihood(y, cov, Kinv_method='cholesky'):
         else:
             gamma = torch.linalg.solve_triangular(L, y, upper=False)
             return -0.5 * (gamma.T @ gamma + 2 * L.diag().log().sum() + len(y) * np.log(2 * np.pi))
+    elif Kinv_method == 'eigen':
+        K_inv, log_det_K = compute_inverse_and_log_det_positive_eigen(cov)
+        return -0.5 * (y.T @ K_inv @ y + log_det_K + len(y) * np.log(2 * np.pi))
+    elif Kinv_method == 'conjugate':
 
+        Sigma_inv_y = conjugate_gradient(cov, y)
+
+        return -0.5 * (torch.matmul(y.t(), Sigma_inv_y) - 0.5 * len(y) * torch.log(
+            2 * torch.tensor(torch.pi))) - 0.5 * lanc_quad_logdet(cov)
     elif Kinv_method == 'torch_distribution_MN1':
         L = torch.linalg.cholesky(cov)
         return torch.distributions.MultivariateNormal(y, scale_tril=L).log_prob(y)
     elif Kinv_method == 'torch_distribution_MN2':
         return torch.distributions.MultivariateNormal(y, cov).log_prob(y)
-    elif Kinv_method == 'eigen':
-        K_inv, log_det_K = compute_inverse_and_log_det_positive_eigen(cov)
-        return -0.5 * (y.T @ K_inv @ y + log_det_K + len(y) * np.log(2 * np.pi))
-    elif Kinv_method == 'conjugate':
-        L = torch.linalg.cholesky(cov)
-        Sigma_inv_y = conjugate_gradient(cov, y)
 
-        return -0.5 * (torch.matmul(y.t(), Sigma_inv_y) - 0.5 * len(y) * torch.log(
-            2 * torch.tensor(torch.pi))) - L.diag().log().sum()
     else:
-        raise ValueError('Kinv_method should be either direct or cholesky')
+        raise ValueError('Kinv_method is not supported.')
 
 
 def conditional_Gaussian(y, Sigma, K_s, K_ss, Kinv_method='cholesky'):
