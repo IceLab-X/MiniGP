@@ -57,7 +57,7 @@ Processes](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf))
 - **Bayesian_Optimization:** This folder contains useful tools for Bayesian optimization
     - acq: A Python scripy including several widely used acquisition functions. 
     - BO_demo: A demonstration of the process of Bayesian optimization.
-    <-img src="https://github.com/IceLab-X/Mini-GP/blob/bf66c980d55934d037992cd70625bd692ea02aaa/asset/Bayesian_Optimization.png" />
+    <img src="https://github.com/IceLab-X/Mini-GP/blob/bf66c980d55934d037992cd70625bd692ea02aaa/asset/Bayesian_Optimization.png" />
 - **experiment:** This folder contains the python scripts of the experiment.
   
 - **asset:** This folder contains the result of the experiment in both .csv and .png format. 
