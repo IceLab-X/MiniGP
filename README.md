@@ -20,7 +20,7 @@ To start using MiniGP, you can clone the repository by running the following com
 ```bash
 git clone
 ```
-You can start by running the Demo.ipynb to have a taste of the library. You can also check the tutorial in the GPmodels_xxx folder to learn how to use the library.
+You can start by running the [Demo.ipynb](https://github.com/IceLab-X/Mini-GP/blob/bf66c980d55934d037992cd70625bd692ea02aaa/Demo.ipynb) to have a taste of the library. You can also check the tutorial in the GPmodels_xxx folder to learn how to use the library.
  
 Most models have two version, the API version for direct call and the tutorial version for customized usage. The API version is in the 'core' folder, and the tutorial version is in the 'GPmodels_xxx' folder.
 
@@ -57,7 +57,7 @@ Processes](https://proceedings.mlr.press/v5/titsias09a/titsias09a.pdf))
 - **Bayesian_Optimization:** This folder contains useful tools for Bayesian optimization
     - acq: A Python scripy including several widely used acquisition functions. 
     - BO_demo: A demonstration of the process of Bayesian optimization.
-
+    <-img src="https://github.com/IceLab-X/Mini-GP/blob/bf66c980d55934d037992cd70625bd692ea02aaa/asset/Bayesian_Optimization.png"/>
 - **experiment:** This folder contains the python scripts of the experiment.
   
 - **asset:** This folder contains the result of the experiment in both .csv and .png format. 
