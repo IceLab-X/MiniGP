@@ -1,16 +1,37 @@
 # MiniGP
-MiniGP is a minimalistic Gaussian Process (GP) library focused on regression tasks. It is designed to be simple and easy to understand. 
+MiniGP is a minimalistic Gaussian Process (GP) library focused on regression tasks. It is designed to be simple and easy to understand, super lightweight, and friendly to researchers and developers.
 
-Despite that there are many successful GP libraries, such as GPy, GPflow, and Pyro, they are often too complex for beginners to understand. Things get worse when the user wants to customize the model. MiniGP is designed to be simple and easy to understand. It is a great tool for educational purposes. We also try to make it easy for anyone to use without a lot of background knowledge of GP.
+## Motivation
+Despite that there are many successful GP libraries, such as GPy, GPflow, and GPyTorch we find them difficult to use for beginners and very time-consuming to customize. It will take a lot of time to understand the structure of the library and the GP model, by which time the user (young research student) may give up. 
+
+Thus we want to create a simple and easy-to-use GP library that can be used by anyone. MiniGP is designed to be simple and easy to understand. It is a great tool for educational purposes. We also try to make it easy for anyone to use without a lot of background knowledge of GP.
+
+## Useful and practical GP Models:
+- CIGP: simple yet accurate multi-output regression model with complexity $O(n^3 d)$ for n training points with d outputs.
+- NeuralKernel: automatic kernel learning with neural network structured kernel.
+
+
 
 ## Installation
 We do not have a pip package yet. You can install it by cloning the repository and rune the code for your own purpose. At this stage we think it is better to keep it simple and customizable. It servers as rather demo code than a library, with some useful functions to make computation easier.
 
-## Structure
-- **core:** This folder contains all the core functions for Gaussian Processes (GP). It serves as the backbone of the library. Additionally, it includes Python scripts for GP models that are designed to be easy and quick to use for research and experimentation. The folder also contains a model comparison script and the corresponding results. More details can be found in the README file within the core folder.
+To start using MiniGP, you can clone the repository by running the following command:
+```bash
+git clone
+```
+You can start by running the Demo.ipynb to have a taste of the library. You can also check the tutorial in the GPmodels_xxx folder to learn how to use the library.
+ 
+Most models have two version, the API version for direct call and the tutorial version for customized usage. The API version is in the 'core' folder, and the tutorial version is in the 'GPmodels_xxx' folder.
 
-<!-- - Self-contained GP models and signiture GPTutorials for educational purposes.
-  Several GP models that are self-contained and practical to use (we use them in many of our research projects).  -->
+
+
+
+## Structure
+- **core:** This folder contains all the core functions (computing likelihood, matrix inversion, kernels, etc.) for Gaussian Processes (GP). It serves as the backbone of the library. 
+Additionally, it includes API GP models (.py) that are designed to be directly called for research and experimentation. 
+More details can be found in the README file within the core folder.
+<!-- ### API GP models:
+  - CIGP: conditional independent GP for multi-output regression. -->
   
   - **GPmodels_Advance:** Advance GP models, including GP with GPU acceleration, and automatic GP.
     - 01_GP&GPU: a GP model leverage GPU acceleration.
