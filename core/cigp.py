@@ -1,6 +1,11 @@
 # # Conditional independent Gaussian process (CIGP) for vector output regression based on pytorch
 # #
 # # CIGP use a single kernel for each output. Thus the log likelihood is simply a sum of the log likelihood of each output.
+import sys
+import os
+_path = os.path.dirname(__file__).split(os.sep)
+sys.path.append(os.sep.join(_path[:_path.index('MiniGP')+1]))
+
 import torch
 import torch.nn as nn
 from core.kernel import ARDKernel
@@ -24,7 +29,7 @@ class cigp(nn.Module):
         self.kernel = kernel
         self.K_inv_method = K_inv_method
 
-    def forward(self, xtr, ytr, xte):
+    def forward(self, xtr, ytr, xte, ytr_var=None):
         Sigma = self.kernel(xtr, xtr) + self.log_beta.exp().pow(-1) * torch.eye(xtr.size(0),
                                                                                 device=self.log_beta.device) \
                 + JITTER * torch.eye(xtr.size(0), device=self.log_beta.device)
@@ -37,10 +42,11 @@ class cigp(nn.Module):
 
         return mean, var_diag
 
-    def negative_log_likelihood(self, xtr, ytr):
+    def negative_log_likelihood(self, xtr, ytr, ytr_var=None):
         Sigma = self.kernel(xtr, xtr) + self.log_beta.exp().pow(-1) * torch.eye(
             xtr.size(0), device=self.log_beta.device) + JITTER * torch.eye(xtr.size(0), device=self.log_beta.device)
-
+        if ytr_var is not None:
+            Sigma = Sigma + ytr_var.diag()* torch.eye(xtr.size(0)).to(xtr.device)
         return -GP.Gaussian_log_likelihood(ytr, Sigma, Kinv_method=self.K_inv_method)
 
     def train_adam(self, xtr, ytr, niteration=10, lr=0.1):
